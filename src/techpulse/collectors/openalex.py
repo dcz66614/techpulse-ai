@@ -1,0 +1,1 @@
+"""OpenAlex read-only collector."""

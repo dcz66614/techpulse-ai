@@ -1,0 +1,1 @@
+"""GitHub read-only collector."""

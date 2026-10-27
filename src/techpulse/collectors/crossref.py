@@ -1,0 +1,1 @@
+"""Crossref read-only collector."""

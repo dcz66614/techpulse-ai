@@ -1,0 +1,1 @@
+"""arXiv read-only collector."""

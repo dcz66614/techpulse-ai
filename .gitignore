@@ -7,4 +7,9 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 artifacts/
+.coverage
+htmlcov/
+dist/
+build/
+*.egg-info/
 
