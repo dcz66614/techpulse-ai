@@ -56,4 +56,5 @@ jobs:
         run: uv run pip-audit
 
       - name: Secret scan
+        shell: bash
         run: uv run detect-secrets-hook --baseline .secrets.baseline --exclude-files 'fake_secret_sample\.txt' $(git -c core.quotePath=false ls-files)

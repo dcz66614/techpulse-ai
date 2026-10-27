@@ -103,3 +103,6 @@ $ uv run detect-secrets-hook --baseline .secrets.baseline --exclude-files 'fake_
 ```
 
 Secrets scan without the exclusion does flag the fixture, as asserted by `test_secret_scanner_flags_fake_github_token`.
+
+## P20fix Secret-scan step shell
+The `Secret scan` step in `.github/workflows/ci.yml` now sets `shell: bash`, so its `$(git -c core.quotePath=false ls-files)` command substitution is evaluated by the Git Bash available on `windows-latest` instead of the default PowerShell shell (which does not expand `$(...)` that way); nothing else in the workflow changed. Verified locally with `uv run ruff check .` (All checks passed!) and `uv run pytest -q` (7 passed).
