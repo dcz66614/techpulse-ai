@@ -106,3 +106,28 @@ Secrets scan without the exclusion does flag the fixture, as asserted by `test_s
 
 ## P20fix Secret-scan step shell
 The `Secret scan` step in `.github/workflows/ci.yml` now sets `shell: bash`, so its `$(git -c core.quotePath=false ls-files)` command substitution is evaluated by the Git Bash available on `windows-latest` instead of the default PowerShell shell (which does not expand `$(...)` that way); nothing else in the workflow changed. Verified locally with `uv run ruff check .` (All checks passed!) and `uv run pytest -q` (7 passed).
+
+## P10 Contracts and migration
+- Added draft 2020-12 JSON Schemas under `contracts/` for the task envelope, task result, raw record, evidence item, trend, and report (`schema_version` 1.0).
+- Added matching Pydantic v2 models in `src/techpulse/contracts.py`. Direct dependencies: `pydantic` and `jsonschema`. Dev stub `types-jsonschema` so strict mypy can import jsonschema.
+- `migrations/0001_init.sql` is the PostgreSQL 16 DDL from section 5. Alembic revision `0001` runs that script on PostgreSQL and `migrations/0001_init.sqlite.sql` on SQLite, and drops the eight tables on downgrade. This machine has no PostgreSQL, so the contract test runs up/down/up on a `tempfile.TemporaryDirectory` SQLite file.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 87 packages in 0.86ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+70 files already formatted
+
+$ uv run mypy
+Success: no issues found in 51 source files
+
+$ uv run pytest -q
+.........................................                                [100%]
+41 passed in 1.37s
+```

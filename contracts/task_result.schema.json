@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:techpulse:schema:task_result:1.0",
+  "title": "TaskResult",
+  "description": "Sole task handoff document. schema_version 1.0 (section 4.2).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "task_id",
+    "run_id",
+    "status",
+    "artifacts",
+    "metrics",
+    "warnings",
+    "errors",
+    "next_tasks"
+  ],
+  "properties": {
+    "task_id": {"type": "string", "minLength": 1},
+    "run_id": {
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "waiting",
+        "ready",
+        "running",
+        "success",
+        "retryable_error",
+        "fatal_error",
+        "policy_blocked"
+      ]
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["uri", "sha256", "rows"],
+        "properties": {
+          "uri": {"type": "string", "minLength": 1},
+          "sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+          "rows": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "metrics": {"type": "object"},
+    "warnings": {"type": "array", "items": {"type": "string"}},
+    "errors": {"type": "array", "items": {"type": "string"}},
+    "next_tasks": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "examples": [
+    {
+      "task_id": "D20",
+      "run_id": "550e8400-e29b-41d4-a716-446655440000",
+      "status": "success",
+      "artifacts": [
+        {
+          "uri": "s3://techpulse-clean/example.parquet",
+          "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "rows": 970
+        }
+      ],
+      "metrics": {"required_field_completeness": 0.99},
+      "warnings": [],
+      "errors": [],
+      "next_tasks": ["D30"]
+    }
+  ]
+}

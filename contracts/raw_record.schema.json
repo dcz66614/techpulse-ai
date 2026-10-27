@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:techpulse:schema:raw_record:1.0",
+  "title": "RawRecord",
+  "description": "Source metadata record. schema_version 1.0 (section 4.3).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "source_id",
+    "source_record_id",
+    "canonical_url",
+    "title",
+    "abstract_or_excerpt",
+    "published_at",
+    "collected_at",
+    "language",
+    "license_status",
+    "content_sha256",
+    "policy_snapshot_id"
+  ],
+  "properties": {
+    "schema_version": {"type": "string", "const": "1.0"},
+    "source_id": {
+      "type": "string",
+      "enum": ["openalex", "crossref", "arxiv", "github", "hn", "rss", "sec", "cninfo"]
+    },
+    "source_record_id": {"type": "string", "minLength": 1},
+    "canonical_url": {"type": "string", "pattern": "^https://\\S+$"},
+    "title": {"type": "string", "minLength": 1},
+    "abstract_or_excerpt": {"type": "string"},
+    "published_at": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+        },
+        {"type": "null"}
+      ]
+    },
+    "published_at_missing_reason": {
+      "anyOf": [
+        {"type": "string", "minLength": 1},
+        {"type": "null"}
+      ]
+    },
+    "collected_at": {
+      "type": "string",
+      "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?(?:Z|[+-]\\d{2}:\\d{2})$"
+    },
+    "language": {"type": "string", "minLength": 1},
+    "license_status": {
+      "type": "string",
+      "enum": [
+        "metadata_only",
+        "reusable_excerpt",
+        "fulltext_allowed",
+        "unknown",
+        "blocked"
+      ]
+    },
+    "content_sha256": {"type": "string", "pattern": "^[0-9a-fA-F]{64}$"},
+    "policy_snapshot_id": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"published_at": {"type": "null"}},
+        "required": ["published_at"]
+      },
+      "then": {
+        "required": ["published_at_missing_reason"],
+        "properties": {
+          "published_at_missing_reason": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  ],
+  "examples": [
+    {
+      "schema_version": "1.0",
+      "source_id": "openalex",
+      "source_record_id": "W0000000000",
+      "canonical_url": "https://example.org/example",
+      "title": "Example title",
+      "abstract_or_excerpt": "Example excerpt",
+      "published_at": "2026-10-26T10:00:00Z",
+      "collected_at": "2026-10-27T00:00:00Z",
+      "language": "en",
+      "license_status": "metadata_only",
+      "content_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "policy_snapshot_id": "openalex-2026-10-27"
+    }
+  ]
+}
