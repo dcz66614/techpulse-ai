@@ -165,3 +165,8 @@ $ uv run pytest -q
 - `docs/decisions/source_policy_<source>.md`: Created detailed decision records for each of the 8 sources containing verification metadata, policy snapshot SHA-256 hashes, domain whitelists, rate limits, and verbatim quoted evidence.
 - Added `tests/unit/test_source_registry.py`: 25 unit tests asserting registry structure, Phase 1 enabled status, Phase 2 disabled status, mandatory fields, GET-only HTTP methods, domain formats, quote validation, and existence of decision documents.
 - Real check output: all 31 tests passing, ruff lint and format check passing.
+
+## S10fix Remove invented HN limits
+- config/source_registry.yaml (hackernews): removed invented 60 req/min and 2-connection concurrency limits from verified rate_limits; recorded the official quote `official_rate_limit: "There is currently no rate limit."` and moved client-side pacing to a clearly labelled `self_imposed_throttle` block with note "project choice, not an official limit"; removed the stale top-level `requests_per_minute: 60`.
+- Also corrected numbers not backed by quoted official sentences elsewhere: crossref (official pool table Public 5/1, Polite 10/3, Plus 150/None), openalex/sec_edgar/rss concurrency_limit -> "not stated", github concurrency 100 with supporting quote, and search limits marked "not stated"; matching edits in docs/decisions/source_policy_{crossref,hackernews,openalex,github,sec_edgar}.md; supporting quotes added for corrected values.
+- Tests: 25 passed in tests/unit/test_source_registry.py (no old numeric assertions needed changing).

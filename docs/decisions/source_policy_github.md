@@ -38,11 +38,11 @@ Direct crawling of `github.com` web pages is forbidden. Requests must target `ap
 
 - **Primary Rate Limits:**
   - **Unauthenticated requests:** 60 requests per hour (1 request per minute).
-  - **Authenticated requests (Personal Access Token / GitHub App):** 5,000 requests per hour (~83 requests per minute).
-  - **Search endpoints:** 10 requests per minute unauthenticated, 30 requests per minute authenticated.
+  - **Authenticated requests (Personal Access Token / GitHub App):** 5,000 requests per hour ("All of these requests count towards your personal rate limit of 5,000 requests per hour.").
+  - **Search endpoints:** More restrictive limits apply, but no numeric search limit is stated in the quoted official documentation.
 - **Secondary Rate Limits:**
   - REST API limit: No more than 900 points per minute.
-  - Concurrent requests: Avoid making multiple concurrent requests to the same endpoint.
+  - Concurrent requests: No more than 100 concurrent requests are allowed ("This limit is shared across the REST API and GraphQL API.").
 - **Response Headers Monitored:**
   - `x-ratelimit-limit`: Maximum allowed requests per window.
   - `x-ratelimit-remaining`: Remaining requests in current window.

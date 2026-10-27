@@ -47,21 +47,22 @@ Any requests to domains outside this whitelist must be rejected by the network/e
 ## 4. Rate Limits & Polite Pool
 
 - **Keyless (Casual) Tier:**
-  - Rate limit: 10 requests per second (600 req/min).
+  - Rate limit: 10 requests per second (600 req/min derived from the quoted per-second rate).
   - Basic paging limit: Up to 10,000 results.
 - **Free API Key Tier:**
-  - Rate limit: 30 requests per second (1,800 req/min).
-  - Daily budget: $1.00 USD/day free allocation.
+  - Rate limit: 30 requests per second (1,800 req/min derived from the quoted per-second rate).
+  - Daily budget: $1.00 USD/day free allocation ("with a free account's $1 a day").
   - Paging: Cursor paging enabled for results beyond 10,000.
 - **Query Paging Limits:**
   - `per_page` maximum: 100.
   - `sample` maximum: 10,000.
+- **Concurrency Limit:** `not stated` (the official documentation gives no numeric concurrency limit).
 - **Response Headers Monitored:**
   - `X-RateLimit-Limit`: Daily quota limit.
   - `X-RateLimit-Remaining`: Remaining budget.
   - `X-RateLimit-Credits-Used`: Credits used by current call.
   - `X-RateLimit-Reset`: Seconds until reset at midnight UTC.
-- **Collector Throttling Target:** Conservative default of 60–120 requests/minute to respect shared server capacity.
+- **Collector Throttling Target (project choice, not an official limit):** Conservative default of 60–120 requests/minute to respect shared server capacity.
 
 ## 5. Required Headers & Authentication
 

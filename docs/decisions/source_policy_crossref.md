@@ -48,18 +48,18 @@ Any requests to other hosts or IP addresses are strictly prohibited.
 ## 4. Rate Limits & Polite Pool
 
 - **Polite Pool Rules:**
-  - Supplying a valid `mailto` parameter or contact in the `User-Agent` routes the request to the `polite-array`.
-  - Rate limit: 3 requests per second (`x-rate-limit-limit: 3`, `x-rate-limit-interval: 1s`).
+  - Supplying a valid `mailto` parameter or contact in the `User-Agent` routes the request to the polite pool.
+  - Rate limit: 10 requests per interval (`x-rate-limit-limit`; interval given by `x-rate-limit-interval`).
   - Concurrency limit: 3 concurrent requests (`x-concurrency-limit: 3`).
-  - Requests per minute ceiling: 180 requests/minute.
+  - Requests per minute ceiling: 600 requests/minute (derived from the quoted polite-pool rate).
 - **Public Pool (Fallback if mailto omitted):**
-  - Limit: 1 request per second (`x-rate-limit-limit: 1`).
+  - Limit: 5 requests per interval (`x-rate-limit-limit`).
   - Concurrency limit: 1 (`x-concurrency-limit: 1`).
 - **Paging Limits & Cursors:**
   - `rows` per request: Maximum 1,000 items.
   - Deep pagination: Must use cursor pagination (`cursor=*` followed by `cursor=[next-cursor]`).
   - Cursor validity: Cursors expire after 5 minutes if not accessed.
-- **Collector Target:** Set to 60–120 requests/minute in the polite pool.
+- **Collector Target (project choice, not an official limit):** Set to 60–120 requests/minute in the polite pool.
 
 ## 5. Required Headers & Authentication
 

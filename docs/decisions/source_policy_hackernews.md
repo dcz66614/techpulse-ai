@@ -41,10 +41,11 @@ Direct crawling of `news.ycombinator.com` HTML pages is strictly forbidden. All 
 ## 4. Rate Limits & Polite Pool
 
 - **Official Statement on Rate Limits:** "There is currently no rate limit."
-- **Internal System Politeness Target:**
+- **Self-Imposed Throttle (project choice, not an official limit):**
   - Standard collector pace: 60 requests per minute (1.0 request/second).
   - Maximum burst: 120 requests per minute.
   - Concurrency: Limited to 2 concurrent connections.
+  - These values are operational choices made by this project; they are not stated by Hacker News.
 - **Data Change Polling:**
   - Poll `/v0/updates.json` or track `/v0/maxitem.json` instead of brute-force polling all item IDs.
 

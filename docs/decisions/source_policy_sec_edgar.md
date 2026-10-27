@@ -39,7 +39,7 @@ Strict egress allow-list:
   - "Current max request rate: 10 requests/second."
   - "To ensure everyone has equitable access to SEC EDGAR content, please use efficient scripting. Download only what you need and please moderate requests to minimize server load."
   - "SEC reserves the right to limit request rates to preserve fair access for all users."
-- **Requests per minute ceiling:** 600 requests/minute (conservative target 120–300 req/min).
+- **Requests per minute ceiling:** 600 requests/minute (derived from the quoted 10 requests/second fair access limit; conservative target 120–300 req/min is a project choice, not an official limit).
 
 ## 5. Required Headers & Authentication
 
