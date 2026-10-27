@@ -78,7 +78,6 @@ $ uv run pytest -q
 
 $ uv run pytest tests/unit tests/contract -q --cov=src/techpulse --cov-report=term-missing
 .......                                                                  [100%]
-=============================== tests coverage ================================
 ______________ coverage: platform win32, python 3.12.13-final-0 _______________
 
 Name                                       Stmts   Miss  Cover   Missing
@@ -159,3 +158,10 @@ $ uv run pytest -q
 ..............................................................           [100%]
 62 passed in 1.56s
 ```
+## S10 Data source policy registry
+- `config/source_registry.yaml`: Created policy registry covering all 8 specified sources across Phase 1 and Phase 2.
+  - Phase 1 (`openalex`, `crossref`, `arxiv`, `github`, `hackernews`): Verified against live official documentation, terms of service, and robots pages; set `enabled: true`. Every field (allowed endpoints, HTTP methods GET only, domain whitelist, rate limits / polite-pool rules, required User-Agent / mailto, auth needs, attribution, caching/retention, redistribution rights, prohibitions) is backed by quoted official evidence.
+  - Phase 2 (`sec_edgar`, `cninfo`, `rss`): Kept strictly `enabled: false`. Verified and recorded official documentation and limitations (cninfo requires SZSE SSO authenticated account with unverified rate limits; RSS is a decentralized format without a single provider base URL; SEC EDGAR requires Cd approval before Phase 2 activation).
+- `docs/decisions/source_policy_<source>.md`: Created detailed decision records for each of the 8 sources containing verification metadata, policy snapshot SHA-256 hashes, domain whitelists, rate limits, and verbatim quoted evidence.
+- Added `tests/unit/test_source_registry.py`: 25 unit tests asserting registry structure, Phase 1 enabled status, Phase 2 disabled status, mandatory fields, GET-only HTTP methods, domain formats, quote validation, and existence of decision documents.
+- Real check output: all 31 tests passing, ruff lint and format check passing.

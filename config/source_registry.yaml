@@ -1,0 +1,438 @@
+# TechPulse-AI Source Policy Registry
+# Generated for S10 Ticket: Data Source Policy Registry and Read-Only Allow-list
+# Spec: docs/spec/TechPulse-AI_执行计划书.md (~line 487-495) and docs/spec/TechPulse-AI_项目书.md section 5 & 11
+# Note: enabled: true only when every field is supported by a quoted official source; phase-2 sources always enabled: false.
+# Final approval of the enabled list is Cd's (AUTH-04).
+
+version: "1.0.0"
+updated_at: "2026-10-27T22:52:37Z"
+approval_authority: "Cd (AUTH-04)"
+
+sources:
+  openalex:
+    source_id: "openalex"
+    source_family: "academic_papers"
+    base_url: "https://api.openalex.org"
+    policy_snapshot_id: "sha256-479109e8c4efbcec"
+    enabled: true
+    disable_reason: null
+    checked_at: "2026-10-27T22:55:00Z"
+    requests_per_minute: 600
+    official_doc_urls:
+      - "https://docs.openalex.org/how-to-use-the-api/rate-limits-and-authentication"
+      - "https://help.openalex.org/api/authentication.md"
+      - "https://help.openalex.org/access/pricing.md"
+      - "https://api.openalex.org/robots.txt"
+    domain_whitelist:
+      - "api.openalex.org"
+    allowed_http_methods:
+      - "GET"
+    allowed_endpoints:
+      - "https://api.openalex.org/works"
+      - "https://api.openalex.org/works/{id}"
+      - "https://api.openalex.org/authors"
+      - "https://api.openalex.org/authors/{id}"
+      - "https://api.openalex.org/sources"
+      - "https://api.openalex.org/sources/{id}"
+      - "https://api.openalex.org/institutions"
+      - "https://api.openalex.org/institutions/{id}"
+      - "https://api.openalex.org/publishers"
+      - "https://api.openalex.org/publishers/{id}"
+      - "https://api.openalex.org/funders"
+      - "https://api.openalex.org/funders/{id}"
+      - "https://api.openalex.org/topics"
+      - "https://api.openalex.org/topics/{id}"
+      - "https://api.openalex.org/rate-limit"
+    rate_limits:
+      requests_per_second: 10
+      requests_per_minute: 600
+      concurrency_limit: 10
+      polite_pool_rules: "Keyless casual use allows up to 10 requests per second. Free API key increases rate limit to 30 requests per second with $1/day free quota. Cursor paging required for >10,000 results."
+      paging_limits:
+        per_page_max: 100
+        basic_paging_max: 10000
+    required_headers:
+      user_agent: "TechPulse-AI/1.0 (https://github.com/techpulse; contact: info@techpulse.example.com)"
+      mailto: "info@techpulse.example.com"
+      extra_headers:
+        Authorization: "Bearer <API_KEY> (optional for keyless; required when using key)"
+    auth_needs: "None for keyless casual access; free API key supported via Authorization header or api_key query parameter"
+    attribution: "OpenAlex data is CC0 public domain; citation and attribution to OpenAlex / POSI principles is standard scholarly best practice"
+    caching_and_retention: "Permitted under CC0 public domain license; local caching and staging of metadata is supported"
+    redistribution_rights: "CC0 1.0 Universal Public Domain Dedication ('the data is a public good, released under a CC0 public-domain license with no personal use only carve-out and no permission to ask')"
+    prohibitions:
+      - "Exceeding daily budget or rate limits (returns 429 Too Many Requests)"
+      - "Inventing fake email addresses for API keys ('Ask your user for their email address; never invent one.')"
+      - "Automated scraping of openalex.org search/list HTML web pages ('Search and list pages on openalex.org are not served to scripts.')"
+    supporting_quotes:
+      - "OpenAlex data is free, and so is casual use of the API — you can make basic queries with no key at all. To use the API at any real scale, though, you'll want a free API key: it raises your daily budget 10×, lets you track your usage, and is required for cursor paging past the first page."
+      - "The API is plain GET requests, so you can test any query in your browser"
+      - "Who’s calling: No API key -> Requests per second: 10; Free API key, or prepaid usage -> Requests per second: 30; Annual plan -> Requests per second: 50"
+      - "Two things return 429 Too Many Requests: exceeding your daily budget, or sending requests faster than your per-second limit."
+      - "Every response carries headers and a meta block showing where you stand: X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Credits-Used, X-RateLimit-Reset"
+      - "Scholarly metadata is treated in most markets as 'the new oil' — value is captured by limiting access. OpenAlex takes the opposite position: the data is a public good, released under a CC0 public-domain license with no 'personal use only' carve-out and no permission to ask."
+      - "Ask your user for their email address; never invent one."
+      - "Search and list pages on openalex.org are not served to scripts. The API has more data and is faster"
+
+  crossref:
+    source_id: "crossref"
+    source_family: "academic_papers"
+    base_url: "https://api.crossref.org"
+    policy_snapshot_id: "sha256-d32d7500c7317bfb"
+    enabled: true
+    disable_reason: null
+    checked_at: "2026-10-27T22:56:00Z"
+    requests_per_minute: 180
+    official_doc_urls:
+      - "https://www.crossref.org/documentation/retrieve-metadata/rest-api/"
+      - "https://www.crossref.org/documentation/retrieve-metadata/rest-api/tips-for-using-the-crossref-rest-api/"
+      - "https://api.crossref.org/swagger-docs"
+      - "https://www.crossref.org/robots.txt"
+    domain_whitelist:
+      - "api.crossref.org"
+    allowed_http_methods:
+      - "GET"
+    allowed_endpoints:
+      - "https://api.crossref.org/works"
+      - "https://api.crossref.org/works/{doi}"
+      - "https://api.crossref.org/works/{doi}/agency"
+      - "https://api.crossref.org/journals"
+      - "https://api.crossref.org/journals/{issn}"
+      - "https://api.crossref.org/journals/{issn}/works"
+      - "https://api.crossref.org/members"
+      - "https://api.crossref.org/members/{id}"
+      - "https://api.crossref.org/members/{id}/works"
+      - "https://api.crossref.org/prefixes/{prefix}/works"
+      - "https://api.crossref.org/funders"
+      - "https://api.crossref.org/funders/{id}"
+      - "https://api.crossref.org/funders/{id}/works"
+      - "https://api.crossref.org/types"
+      - "https://api.crossref.org/types/{id}/works"
+      - "https://api.crossref.org/licenses"
+    rate_limits:
+      requests_per_second: 3
+      requests_per_minute: 180
+      concurrency_limit: 3
+      polite_pool_rules: "Providing a valid mailto parameter (or User-Agent mailto) routes requests to polite-array with limit of 3 requests per second and concurrency limit of 3 (vs public pool of 1 req/s)."
+      paging_limits:
+        rows_max: 1000
+        cursor_expiry_minutes: 5
+    required_headers:
+      user_agent: "TechPulse-AI/1.0 (mailto:info@techpulse.example.com)"
+      mailto: "info@techpulse.example.com"
+      extra_headers:
+        Accept: "application/vnd.crossref-api-message+json"
+    auth_needs: "None for public REST API polite pool; mailto identification required"
+    attribution: "Documentation is CC BY 4.0; member bibliographic metadata is shared openly across the global community"
+    caching_and_retention: "Permitted and explicitly recommended ('You might have a request that you want to make repeatedly and keep local results cached. You may even want to have a complete copy of the Crossref database and keep it up-to-date')"
+    redistribution_rights: "All bibliographic metadata is openly shared with the global scholarly community through free APIs"
+    prohibitions:
+      - "Exceeding rate limits without exponential backoff on 429"
+      - "Persistent failure to handle 429/403 blocks"
+    supporting_quotes:
+      - "Our publicly available REST API exposes the scholarly metadata that members and trusted sources deposit with Crossref. This bibliographic metadata and much more—you will find funding data, license information, post-publication updates, ORCID and ROR IDs, and abstracts. You can search, facet, filter, or sample metadata from dozens of thousands of members from all around the world, and the results are returned in JSON format."
+      - "mailto: The email address to identify yourself and access the 'polite pool'"
+      - "Use the polite pool: https://api.crossref.org/works?rows=0&mailto=yourmail@company.org"
+      - "List requests return up to 1000 items in a single request. Paginating through multiple pages of results is possible using the cursor parameter... Cursors expire after 5 minutes if not used."
+      - "Also pay attention to the http status code and back off if you start seeing 429 statuses, which means you are being rate limited."
+      - "If you see a 429 or 403 response it means you have been temporarily or permanently blocked, in which case check the response text for details on how to proceed."
+      - "You might have a request that you want to make repeatedly and keep local results cached. You may even want to have a complete copy of the Crossref database and keep it up-to-date"
+      - "All this metadata is openly shared with the global scholarly community through our free APIs."
+
+  arxiv:
+    source_id: "arxiv"
+    source_family: "academic_papers"
+    base_url: "https://export.arxiv.org/api/query"
+    policy_snapshot_id: "sha256-74aca38a215f3c08"
+    enabled: true
+    disable_reason: null
+    checked_at: "2026-10-27T22:59:00Z"
+    requests_per_minute: 20
+    official_doc_urls:
+      - "https://info.arxiv.org/help/api/index.html"
+      - "https://info.arxiv.org/help/api/tou.html"
+      - "https://info.arxiv.org/help/api/user-manual.html"
+      - "https://arxiv.org/robots.txt"
+      - "https://export.arxiv.org/robots.txt"
+    domain_whitelist:
+      - "export.arxiv.org"
+    allowed_http_methods:
+      - "GET"
+    allowed_endpoints:
+      - "https://export.arxiv.org/api/query"
+      - "http://export.arxiv.org/api/query"
+    rate_limits:
+      requests_per_second: 0.33
+      requests_per_minute: 20
+      concurrency_limit: 1
+      polite_pool_rules: "Make no more than one request every three seconds, and limit requests to a single connection at a time across all machines under your control as a whole."
+      paging_limits:
+        max_results_per_slice: 2000
+        max_results_per_query: 30000
+    required_headers:
+      user_agent: "TechPulse-AI/1.0 (https://github.com/techpulse; contact: info@techpulse.example.com)"
+      mailto: "info@techpulse.example.com"
+      extra_headers: {}
+    auth_needs: "None. Public query API"
+    attribution: "Descriptive metadata is CC0 1.0 Universal; attribution to arXiv and authors requested"
+    caching_and_retention: "Descriptive metadata caching and retention is fully permitted under CC0 1.0"
+    redistribution_rights: "Descriptive metadata (title, abstract, authors, identifiers, classifications) is under Creative Commons Universal (CC0 1.0) Public Domain Declaration. Full text / PDF redistribution is strictly prohibited without explicit copyright owner permission."
+    prohibitions:
+      - "Make no more than one request every three seconds, and limit requests to a single connection at a time."
+      - "Attempt to circumvent rate limits."
+      - "You should not attempt to overcome these limits by increasing the number of machines used to make requests."
+      - "Store and serve arXiv e-prints (PDFs, source files, or other content) from your servers, unless you have the permission of the copyright holder or are permitted to do so by the license with which the e-print was submitted."
+      - "Indiscriminate automated downloads from arxiv.org web pages."
+    supporting_quotes:
+      - "You are free to use descriptive metadata1 about arXiv e-prints under the terms of the Creative Commons Universal (CC0 1.0) Public Domain Declaration."
+      - "1Descriptive metadata includes information for discovery and identification purposes, and includes fields such as title, abstract, authors, identifiers, and classification terms."
+      - "When using the legacy APIs (including OAI-PMH, RSS, and the arXiv API), make no more than one request every three seconds, and limit requests to a single connection at a time."
+      - "Please note that the following rate limits apply to all of the machines under your control as a whole. You should not attempt to overcome these limits by increasing the number of machines used to make requests."
+      - "You understand that e-prints from arXiv are subject to all applicable copyright protections. The redistribution of e-prints requires permission from the copyright holder, which may be the author(s) or publisher. arXiv is not the copyright holder on any of the e-prints available through the API."
+      - "Store and serve arXiv e-prints (PDFs, source files, or other content) from your servers, unless you have the permission of the copyright holder or are permitted to do so by the license with which the e-print was submitted."
+      - "The request can be made via HTTP GET, in which the parameters are encoded in the url"
+      - "Because of speed limitations in our implementation of the API, the maximum number of results returned from a single call (max_results) is limited to 30000 in slices of at most 2000 at a time, using the max_results and start query parameters."
+
+  github:
+    source_id: "github"
+    source_family: "code_repositories"
+    base_url: "https://api.github.com"
+    policy_snapshot_id: "sha256-261b710f2ed4eeb1"
+    enabled: true
+    disable_reason: null
+    checked_at: "2026-10-27T22:59:40Z"
+    requests_per_minute: 1
+    official_doc_urls:
+      - "https://docs.github.com/en/rest/using-the-rest-api/rate-limits-for-the-rest-api"
+      - "https://docs.github.com/en/rest/using-the-rest-api/getting-started-with-the-rest-api"
+      - "https://docs.github.com/en/site-policy/acceptable-use-policies/github-acceptable-use-policies"
+      - "https://github.com/robots.txt"
+    domain_whitelist:
+      - "api.github.com"
+    allowed_http_methods:
+      - "GET"
+    allowed_endpoints:
+      - "https://api.github.com/repos/{owner}/{repo}"
+      - "https://api.github.com/repos/{owner}/{repo}/releases"
+      - "https://api.github.com/repos/{owner}/{repo}/tags"
+      - "https://api.github.com/search/repositories"
+      - "https://api.github.com/rate_limit"
+    rate_limits:
+      requests_per_second: 0.016
+      requests_per_minute: 1
+      concurrency_limit: 1
+      polite_pool_rules: "Unauthenticated requests limited to 60 requests per hour (1/minute). Authenticated requests provide 5,000 requests per hour (83/minute). Search endpoints limited to 10 req/min unauthenticated or 30 req/min authenticated. Secondary rate limit allows no more than 900 points per minute."
+      secondary_rate_limit_points_per_minute: 900
+    required_headers:
+      user_agent: "TechPulse-AI/1.0 (https://github.com/techpulse; contact: info@techpulse.example.com)"
+      mailto: "info@techpulse.example.com"
+      extra_headers:
+        Accept: "application/vnd.github+json"
+        X-GitHub-Api-Version: "2022-11-28"
+        Authorization: "Bearer <GITHUB_TOKEN> (optional for public data; enables authenticated rate limit)"
+    auth_needs: "Optional for public repository metadata; personal access token or GitHub App token increases primary limit to 5,000 req/hr"
+    attribution: "Respect individual repository open-source licenses and author attribution"
+    caching_and_retention: "Conditional requests with ETag and If-None-Match supported; 304 Not Modified responses do not count against primary rate limit"
+    redistribution_rights: "Metadata and public activity data may be collected for informational analysis; repository code redistribution governed by each repo's license"
+    prohibitions:
+      - "All API requests must include a valid User-Agent header; requests with no User-Agent will be rejected with 403 Forbidden."
+      - "You may not use information from the Service (whether scraped, collected through our API, or obtained otherwise) for spamming purposes, including for the purposes of sending unsolicited emails to users or selling personal information."
+      - "using our servers for any form of excessive automated bulk activity, to place undue burden on our servers through automated means"
+      - "Web scraping HTML pages when official API is available"
+    supporting_quotes:
+      - "All API requests must include a valid User-Agent header. The User-Agent header identifies the user or application that is making the request."
+      - "Requests with no User-Agent header will be rejected. If you provide an invalid User-Agent header, you will receive a 403 Forbidden response."
+      - "The primary rate limit for unauthenticated requests is 60 requests per hour."
+      - "You can make unauthenticated requests if you are only fetching public data. Unauthenticated requests are associated with the originating IP address, not with the user or application that made the request."
+      - "No more than 900 points per minute are allowed for REST API endpoints, and no more than 2,000 points per minute are allowed for the GraphQL API endpoint."
+      - "If you exceed your primary rate limit, you will receive a 403 or 429 response, and the x-ratelimit-remaining header will be 0. You should not retry your request until after the time specified by the x-ratelimit-reset header."
+      - "If you exceed a secondary rate limit, you will receive a 403 or 429 response and an error message that indicates that you exceeded a secondary rate limit. If the retry-after response header is present, you should not retry your request until after that many seconds has elapsed."
+      - "Scraping refers to extracting information from our Service via an automated process, such as a bot or webcrawler. Scraping does not refer to the collection of information through our API."
+      - "You may not use information from the Service (whether scraped, collected through our API, or obtained otherwise) for spamming purposes, including for the purposes of sending unsolicited emails to users or selling personal information, such as to recruiters, headhunters, and job boards. Misuse of personal information is prohibited."
+
+  hackernews:
+    source_id: "hackernews"
+    source_family: "community_discussions"
+    base_url: "https://hacker-news.firebaseio.com/v0/"
+    policy_snapshot_id: "sha256-d05432c450dbf604"
+    enabled: true
+    disable_reason: null
+    checked_at: "2026-10-27T23:00:10Z"
+    requests_per_minute: 60
+    official_doc_urls:
+      - "https://github.com/HackerNews/API"
+      - "https://news.ycombinator.com/robots.txt"
+      - "https://news.ycombinator.com/newsguidelines.html"
+    domain_whitelist:
+      - "hacker-news.firebaseio.com"
+    allowed_http_methods:
+      - "GET"
+    allowed_endpoints:
+      - "https://hacker-news.firebaseio.com/v0/item/{id}.json"
+      - "https://hacker-news.firebaseio.com/v0/topstories.json"
+      - "https://hacker-news.firebaseio.com/v0/newstories.json"
+      - "https://hacker-news.firebaseio.com/v0/beststories.json"
+      - "https://hacker-news.firebaseio.com/v0/askstories.json"
+      - "https://hacker-news.firebaseio.com/v0/showstories.json"
+      - "https://hacker-news.firebaseio.com/v0/jobstories.json"
+      - "https://hacker-news.firebaseio.com/v0/maxitem.json"
+      - "https://hacker-news.firebaseio.com/v0/updates.json"
+      - "https://hacker-news.firebaseio.com/v0/user/{username}.json"
+    rate_limits:
+      requests_per_second: 1.0
+      requests_per_minute: 60
+      concurrency_limit: 2
+      polite_pool_rules: "Official documentation states: 'There is currently no rate limit.' Conservative polite client limit of 60 requests per minute is enforced by TechPulse."
+    required_headers:
+      user_agent: "TechPulse-AI/1.0 (https://github.com/techpulse; contact: info@techpulse.example.com)"
+      mailto: "info@techpulse.example.com"
+      extra_headers: {}
+    auth_needs: "None. Open public Firebase JSON endpoints"
+    attribution: "Attribute stories and comments to Hacker News and individual contributors"
+    caching_and_retention: "Caching is supported; changes may be polled incrementally using /v0/updates.json or /v0/maxitem.json"
+    redistribution_rights: "Public discussion records may be analyzed and referenced; no commercial harvesting of user personal profiles"
+    prohibitions:
+      - "Indiscriminate scraping of news.ycombinator.com web pages (robots.txt Crawl-delay: 30; disallow actions)"
+      - "Aggressive unthrottled concurrent connections that degrade Firebase service"
+    supporting_quotes:
+      - "In partnership with Firebase, we're making the public Hacker News data available in near real time."
+      - "This first iteration will have URIs prefixed with https://hacker-news.firebaseio.com/v0/ and is structured as described below. There is currently no rate limit."
+      - "Stories, comments, jobs, Ask HNs and even polls are just items. They're identified by their ids, which are unique integers, and live under /v0/item/<id>.json."
+      - "Clients should gracefully handle additional fields they don't expect, and simply ignore them."
+      - "Please email api@ycombinator.com if you find any bugs."
+
+  sec_edgar:
+    source_id: "sec_edgar"
+    source_family: "regulatory_filings"
+    base_url: "https://data.sec.gov"
+    policy_snapshot_id: "sha256-6af9be447cf4062a"
+    enabled: false
+    disable_reason: "Phase 2 source; must stay enabled: false per project execution plan; requires Cd (AUTH-04) approval before activation."
+    checked_at: "2026-10-27T23:00:50Z"
+    requests_per_minute: 600
+    official_doc_urls:
+      - "https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data"
+      - "https://www.sec.gov/robots.txt"
+    domain_whitelist:
+      - "data.sec.gov"
+      - "www.sec.gov"
+    allowed_http_methods:
+      - "GET"
+    allowed_endpoints:
+      - "https://data.sec.gov/submissions/CIK{cik10}.json"
+      - "https://data.sec.gov/api/xbrl/companyfacts/CIK{cik10}.json"
+      - "https://data.sec.gov/api/xbrl/companyconcept/CIK{cik10}/{taxonomy}/{tag}.json"
+      - "https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/{filename}"
+    rate_limits:
+      requests_per_second: 10
+      requests_per_minute: 600
+      concurrency_limit: 10
+      polite_pool_rules: "Current max request rate: 10 requests/second. Use efficient scripting and download only what is needed."
+    required_headers:
+      user_agent: "Sample Company Name AdminContact@<sample company domain>.com"
+      mailto: "AdminContact@sample company domain.com"
+      extra_headers:
+        Accept-Encoding: "gzip, deflate"
+        Host: "data.sec.gov"
+    auth_needs: "None, but User-Agent header with company name and admin contact email is strictly mandatory"
+    attribution: "Public domain US government corporate disclosures"
+    caching_and_retention: "Cache files locally; do not repeatedly download unchanged filings"
+    redistribution_rights: "Public records accessible under SEC EDGAR Fair Access policy"
+    prohibitions:
+      - "The SEC does not allow botnets or automated tools to crawl the site. Any request that has been identified as part of a botnet or an automated tool outside of the acceptable policy will be managed to ensure fair access for all users."
+      - "Exceeding 10 requests per second."
+      - "Failing to declare user agent in request headers matching required pattern."
+    supporting_quotes:
+      - "Fair access: Current max request rate: 10 requests/second."
+      - "To ensure everyone has equitable access to SEC EDGAR content, please use efficient scripting. Download only what you need and please moderate requests to minimize server load."
+      - "SEC reserves the right to limit request rates to preserve fair access for all users."
+      - "The SEC does not allow botnets or automated tools to crawl the site. Any request that has been identified as part of a botnet or an automated tool outside of the acceptable policy will be managed to ensure fair access for all users."
+      - "Please declare your user agent in request headers: Sample Declared Bot Request Headers: User-Agent: Sample Company Name AdminContact@<sample company domain>.com"
+      - "Submissions by company and extracted XBRL data are available via RESTful APIs on data.sec.gov, offering JSON formatted data."
+
+  cninfo:
+    source_id: "cninfo"
+    source_family: "regulatory_filings"
+    base_url: "http://webapi.cninfo.com.cn"
+    policy_snapshot_id: "sha256-2f794a1d0aac9fe3"
+    enabled: false
+    disable_reason: "Phase 2 source; must stay enabled: false per project execution plan; web API requires Shenzhen Stock Exchange SSO authenticated account and enterprise contract; unauthenticated open REST API is not provided; robots.txt is 404; unverified limits."
+    checked_at: "2026-10-27T23:02:10Z"
+    requests_per_minute: null
+    official_doc_urls:
+      - "http://www.cninfo.com.cn/new/index"
+      - "http://webapi.cninfo.com.cn/"
+      - "http://www.cninfo.com.cn/robots.txt"
+    domain_whitelist:
+      - "www.cninfo.com.cn"
+      - "webapi.cninfo.com.cn"
+    allowed_http_methods:
+      - "not stated"
+    allowed_endpoints:
+      - "not stated"
+    rate_limits:
+      requests_per_second: "not stated"
+      requests_per_minute: "not stated"
+      concurrency_limit: "not stated"
+      polite_pool_rules: "not stated"
+    required_headers:
+      user_agent: "not stated"
+      mailto: "not stated"
+      extra_headers: {}
+    auth_needs: "Shenzhen Stock Exchange SSO authenticated account required (owssso.szse.cn)"
+    attribution: "深圳证券信息有限公司 版权所有 (Shenzhen Securities Information Co., Ltd. All Rights Reserved)"
+    caching_and_retention: "not stated"
+    redistribution_rights: "not stated"
+    prohibitions:
+      - "Undocumented scraping or automated extraction of unauthorized endpoints."
+      - "免责声明：本网站竭力保证所提供的证券市场信息准确可靠，但并不担保（无论提示、默示、法定或其他形式）其准确性和完整性。任何使用方不得就全部或部分使用其中的证券市场信息作为依据对于由此而引起的任何损失向本公司提出索赔。"
+      - "Unauthorized reproduction or commercial redistribution without license."
+    supporting_quotes:
+      - "巨潮资讯网是深圳证券交易所信息披露官方网站，由深交所全资子公司深圳证券信息有限公司运营，平台始终致力于保护投资者的知情权和参与权，为投资者提供一站式的证券市场信息服务。"
+      - "深圳证券信息有限公司 版权所有"
+      - "免责声明：本网站竭力保证所提供的证券市场信息准确可靠，但并不担保（无论提示、默示、法定或其他形式）其准确性和完整性。任何使用方不得就全部或部分使用其中的证券市场信息作为依据对于由此而引起的任何损失向本公司提出索赔。"
+      - "本声明在本网站首页及相关页面发布。本网站郑重提示：任何机构或者个人进入本网站，即被视为已完全知悉、理解并接受本声明的全部内容。"
+
+  rss:
+    source_id: "rss"
+    source_family: "syndicated_feeds"
+    base_url: "not stated"
+    policy_snapshot_id: "sha256-1610f254e9312593"
+    enabled: false
+    disable_reason: "Phase 2 source; must stay enabled: false per project execution plan; RSS/Atom is a decentralized format specification (RSS 2.0 / RFC 4287) without a centralized provider, fixed domain, or universal ToS; requires per-feed domain whitelisting and compliance review."
+    checked_at: "2026-10-27T23:02:40Z"
+    requests_per_minute: null
+    official_doc_urls:
+      - "https://www.rssboard.org/rss-specification"
+      - "https://www.rfc-editor.org/rfc/rfc4287"
+      - "https://www.rssboard.org/robots.txt"
+    domain_whitelist: []
+    allowed_http_methods:
+      - "GET"
+    allowed_endpoints:
+      - "not stated"
+    rate_limits:
+      requests_per_second: "not stated"
+      requests_per_minute: "not stated"
+      concurrency_limit: 1
+      polite_pool_rules: "Governed per-feed by channel <ttl> tag (time-to-live in minutes) and optional <skipHours> and <skipDays> hints."
+    required_headers:
+      user_agent: "TechPulse-AI/1.0 (https://github.com/techpulse; contact: info@techpulse.example.com)"
+      mailto: "info@techpulse.example.com"
+      extra_headers:
+        If-Modified-Since: "<HTTP-date>"
+        If-None-Match: "<ETag>"
+    auth_needs: "None for public syndicated feeds; publisher dependent"
+    attribution: "Mandatory per channel <copyright> and <title> elements"
+    caching_and_retention: "Caching governed by channel <ttl> element ('ttl stands for time to live. It's a number of minutes that indicates how long a channel can be cached before refreshing from the source.')"
+    redistribution_rights: "Content copyright held by respective feed publisher ('Copyright notice for content in the channel.'); headlines/snippets may be referenced with attribution; full-text redistribution prohibited unless explicitly licensed."
+    prohibitions:
+      - "Fetching feeds more frequently than <ttl> interval."
+      - "Polling during restricted hours/days defined in <skipHours> and <skipDays>."
+      - "Ignoring publisher robots.txt."
+    supporting_quotes:
+      - "RSS is a Web content syndication format. Subordinate to the <rss> element is a single <channel> element, which contains information about the channel (metadata) and its contents."
+      - "ttl stands for time to live. It's a number of minutes that indicates how long a channel can be cached before refreshing from the source."
+      - "skipHours: A hint for aggregators telling them which hours they can skip. This element contains up to 24 <hour> sub-elements whose value is a number between 0 and 23, representing a time in GMT, when aggregators, if they support the feature, may not read the channel on hours listed in the <skipHours> element."
+      - "skipDays: A hint for aggregators telling them which days they can skip. This element contains up to seven <day> sub-elements whose value is Monday, Tuesday, Wednesday, Thursday, Friday, Saturday or Sunday. Aggregators may not read the channel during days listed in the <skipDays> element."
+      - "copyright: Copyright notice for content in the channel."
