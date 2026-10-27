@@ -27,3 +27,25 @@ $ uv run pytest -q
 .                                                                        [100%]
 1 passed in 0.01s
 ```
+
+## P00fix Environment report fatal status
+- `scripts/write_env_report.py`: `evaluate_checks` now returns `fatal_error` (with an `errors` list in manifest.json) when Python is not 3.12.x or uv/git are missing; the script exits 1 in that case. Docker missing remains a warning only.
+- Added `tests/unit/test_write_env_report.py` covering success, Python 3.11, missing uv, missing docker, and fatal manifest output.
+- Verified report run: `uv run python scripts/write_env_report.py --run-id p00fix-verify` → status `success`, exit 0 (Docker not installed on this machine).
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 80 packages in 0.64ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+58 files already formatted
+
+$ uv run pytest -q
+......                                                                   [100%]
+6 passed in 0.03s
+```

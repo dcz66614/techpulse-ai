@@ -43,6 +43,76 @@ def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def evaluate_checks(
+    python_version: str,
+    uv_version: str,
+    git_version: str,
+    docker_version: str,
+) -> tuple[str, list[str]]:
+    """Return the report status and the list of fatal check failures."""
+    errors = []
+    if not python_version.startswith("3.12."):
+        errors.append("python is not 3.12.x")
+    if uv_version == "not installed":
+        errors.append("uv is not installed")
+    if git_version == "not installed":
+        errors.append("git is not installed")
+    status = "fatal_error" if errors else "success"
+    return status, errors
+
+
+def write_reports(
+    output_dir: Path,
+    root: Path,
+    run_id: str,
+    environment: dict[str, Any],
+    status: str,
+    errors: list[str],
+    duration_seconds: float,
+) -> None:
+    """Write the environment, metrics, and manifest artifacts."""
+    environment_path = output_dir / "environment.json"
+    write_json(environment_path, environment)
+
+    metrics = {
+        "task_id": "P00",
+        "run_id": run_id,
+        "generated_at": environment["generated_at"],
+        "status": status,
+        "duration_seconds": duration_seconds,
+        "checks": {
+            "python_3_12": environment["python"]["is_3_12"],
+            "uv_available": environment["uv"]["version"] != "not installed",
+            "git_available": environment["git"]["version"] != "not installed",
+            "docker_available": environment["docker"]["version"] != "not installed",
+        },
+    }
+    metrics_path = output_dir / "metrics.json"
+    write_json(metrics_path, metrics)
+
+    manifest = {
+        "task_id": "P00",
+        "run_id": run_id,
+        "generated_at": environment["generated_at"],
+        "status": status,
+        "errors": errors,
+        "artifacts": [
+            {
+                "path": environment_path.relative_to(root).as_posix(),
+                "sha256": sha256_file(environment_path),
+                "bytes": environment_path.stat().st_size,
+            },
+            {
+                "path": metrics_path.relative_to(root).as_posix(),
+                "sha256": sha256_file(metrics_path),
+                "bytes": metrics_path.stat().st_size,
+            },
+        ],
+    }
+    manifest_path = output_dir / "manifest.json"
+    write_json(manifest_path, manifest)
+
+
 def main() -> int:
     """Generate the P00 reports and print their location."""
     parser = argparse.ArgumentParser(description=__doc__)
@@ -84,48 +154,13 @@ def main() -> int:
         },
     }
 
-    environment_path = output_dir / "environment.json"
-    write_json(environment_path, environment)
+    status, errors = evaluate_checks(python_version, uv_version, git_version, docker_version)
 
     elapsed = round(time.perf_counter() - started, 6)
-    metrics = {
-        "task_id": "P00",
-        "run_id": args.run_id,
-        "generated_at": generated_at,
-        "status": "success",
-        "duration_seconds": elapsed,
-        "checks": {
-            "python_3_12": environment["python"]["is_3_12"],
-            "uv_available": uv_version != "not installed",
-            "git_available": git_version != "not installed",
-            "docker_available": docker_version != "not installed",
-        },
-    }
-    metrics_path = output_dir / "metrics.json"
-    write_json(metrics_path, metrics)
+    write_reports(output_dir, root, args.run_id, environment, status, errors, elapsed)
 
-    manifest = {
-        "task_id": "P00",
-        "run_id": args.run_id,
-        "generated_at": generated_at,
-        "artifacts": [
-            {
-                "path": environment_path.relative_to(root).as_posix(),
-                "sha256": sha256_file(environment_path),
-                "bytes": environment_path.stat().st_size,
-            },
-            {
-                "path": metrics_path.relative_to(root).as_posix(),
-                "sha256": sha256_file(metrics_path),
-                "bytes": metrics_path.stat().st_size,
-            },
-        ],
-    }
-    manifest_path = output_dir / "manifest.json"
-    write_json(manifest_path, manifest)
-
-    print(json.dumps({"output_dir": str(output_dir), "status": "success"}, indent=2))
-    return 0
+    print(json.dumps({"output_dir": str(output_dir), "status": status, "errors": errors}, indent=2))
+    return 0 if status == "success" else 1
 
 
 if __name__ == "__main__":
