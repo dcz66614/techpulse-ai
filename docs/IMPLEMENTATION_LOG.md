@@ -131,3 +131,31 @@ $ uv run pytest -q
 .........................................                                [100%]
 41 passed in 1.37s
 ```
+
+## S20 Egress, least privilege, and prompt guard
+- `config/policy.yaml` is default deny. Each section 1.2 role has `network: none` or `network: allowlisted_get`, and a tool allow-list. Only CollectorAgent has network access.
+- `check_egress(role, method, url)` allows GET and HEAD to allowlisted hosts for that collector role. Cleaner, Writer, and QA have no network. Anything else raises `PolicyBlocked`. `GuardedTransport`, `AsyncGuardedTransport`, and `egress_request_hook` apply the check to httpx.
+- The host allow-list is the enabled sources in `config/source_registry.yaml` when that file exists, and `network_allowlist.domains` in `config/policy.yaml` otherwise. S10 has not added the registry on this branch. Tests use `tests/fixtures/source_registry.yaml`.
+- Tool calls go through `authorize_tool_call`: the role must list the tool, then Pydantic validates the arguments. `put_raw`, `write_evidence`, and `update_task_status` use the P10 `RawRecord`, `EvidenceItem`, and `TaskResult` models. `UntrustedData` fences third-party text so a malicious README is not executed. `write_audit_log` redacts secret-looking strings.
+- This machine has no container runtime. Isolation is in-process. Container network policy is recorded as future work in `docs/decisions/s20_isolation.md`.
+- Added direct dependency `pyyaml` and dev stub `types-pyyaml` so strict mypy can import the registry loader.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 1ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+74 files already formatted
+
+$ uv run mypy
+Success: no issues found in 52 source files
+
+$ uv run pytest -q
+..............................................................           [100%]
+62 passed in 1.56s
+```

@@ -1,0 +1,90 @@
+# S20 default-deny role policy (section 1.2).
+# network is none or allowlisted_get.
+# network_allowlist.domains is used only when config/source_registry.yaml is absent.
+# That registry is owned by S10. When it is present, enabled sources replace this list.
+default: deny
+network_allowlist:
+  domains:
+    - api.openalex.org
+    - api.crossref.org
+    - export.arxiv.org
+    - api.github.com
+    - hacker-news.firebaseio.com
+roles:
+  GrokbotOrchestrator:
+    network: none
+    tools:
+      - read_task_queue
+      - update_task_status
+  InfraAgent:
+    network: none
+    tools:
+      - write_repo
+      - write_test_env
+      - run_ci
+      - run_migration
+  PolicyAgent:
+    network: none
+    tools:
+      - read_official_docs
+      - propose_source_registry_change
+  CollectorAgent:
+    network: allowlisted_get
+    tools:
+      - http_get
+      - put_raw
+  CleanerAgent:
+    network: none
+    tools:
+      - read_raw
+      - write_sanitized
+      - redact_pii
+      - dedup
+  IndexAgent:
+    network: none
+    tools:
+      - read_sanitized
+      - write_index
+  SignalAgent:
+    network: none
+    tools:
+      - read_features
+      - write_features
+  EvidenceAgent:
+    network: none
+    tools:
+      - read_index
+      - write_evidence
+  WriterAgent:
+    network: none
+    tools:
+      - read_evidence
+      - write_draft
+  QAAgent:
+    network: none
+    tools:
+      - read_draft
+      - read_evidence
+      - write_qa_report
+  APIAgent:
+    network: none
+    tools:
+      - write_service_code
+  DeployAgent:
+    network: none
+    tools:
+      - deploy_approved_env
+      - rollback
+      - run_migration
+  OpsAgent:
+    network: none
+    tools:
+      - read_metrics
+      - read_logs
+      - read_backup
+      - write_ops_record
+  GrowthAgent:
+    network: none
+    tools:
+      - read_draft
+      - write_analysis

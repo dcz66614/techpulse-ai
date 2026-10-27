@@ -1,0 +1,10 @@
+# Small S20 fixture. Not the S10 registry.
+sources:
+  - source_id: openalex
+    enabled: true
+    domains:
+      - api.openalex.org
+  - source_id: unapproved
+    enabled: false
+    domains:
+      - disabled.example
