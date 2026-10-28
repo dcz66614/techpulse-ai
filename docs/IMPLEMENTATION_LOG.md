@@ -1358,3 +1358,51 @@ $ uv run pytest -q
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 900 passed, 1 deselected, 1 warning in 23.53s
 ```
+
+
+## V90 Staging go/no-go gate and security sign-off
+
+- `src/techpulse/release/go_nogo.py`: Deterministic checker evaluating Section 10 thresholds, all P0 tasks, S20 egress and role least privilege, price snapshot and model router safeguards, lawful data-source use (S10 registry with `sec_edgar`, `cninfo`, `rss` disabled per AUTH-04), and 0 secret/privilege-escalation events.
+- Staging-only cap: without AUTH-06, release status is capped at `staging READY`, never production. Cloud deployment to production is refused.
+- Six gated items recorded: `AUTH-02 deploy pending`, `AUTH-06 production sign-off pending`, `V99 24h soak not run`, `M70 optional skipped_not_applicable`, `C30/C31 off`, `G20 needs AUTH-06`.
+- Artifacts & decisions: outputs `artifacts/v90-20261028T204448Z/V90/{go_nogo,manifest,metrics}.json` and `docs/decisions/release_acceptance.md`.
+- `scripts/go_nogo.py`: cross-platform CLI runner for executing the gate check and writing release artifacts.
+- Tests: `tests/unit/test_v90_go_nogo.py` covering pass case (`staging READY`), 17 failing threshold and security violation cases (`BLOCKED`), and the AUTH-06 staging-only cap.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 2ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+172 files already formatted
+
+$ uv run mypy
+Success: no issues found in 102 source files
+
+$ uv run pytest -q
+........................................................................ [  7%]
+........................................................................ [ 15%]
+........................................................................ [ 23%]
+........................................................................ [ 31%]
+........................................................................ [ 39%]
+........................................................................ [ 47%]
+........................................................................ [ 55%]
+........................................................................ [ 63%]
+........................................................................ [ 71%]
+........................................................................ [ 79%]
+........................................................................ [ 87%]
+........................................................................ [ 95%]
+........................................                                 [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+904 passed, 1 deselected, 1 warning in 199.01s (0:03:19)
+```
