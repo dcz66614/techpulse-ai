@@ -613,3 +613,38 @@ $ uv run pytest -q
 ......                                                                   [100%]
 726 passed in 11.50s
 ```
+
+## T20 7d/28d windows and growth features
+- `src/techpulse/trends/features.py`: 7-day and 28-day windows are UTC calendar days, half-open at midnight. Independent records are deduped by upstream id, canonical id, then content hash. The row stores numerators, denominators, and the record ids behind growth, diversity, quality, novelty, 28-day persistence, and developer activity. Growth is `null` when the previous window has fewer than 3 independent records. Reprint, same-domain, bot-share, and small-base penalties each carry the raw count they used, and the sum is capped at 0.30.
+- Artifacts go through `LocalObjectStore`. pyarrow is not installed, so the table is `features.jsonl`. The same rows are inserted into SQLite `trend_feature_snapshots`.
+- `tests/unit/test_t20_features.py` derives every expected rate from the fixture's own counts and dates. Timestamps are built in the test. `tempfile` holds the run directory.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.65ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+123 files already formatted
+
+$ uv run mypy
+Success: no issues found in 78 source files
+
+$ uv run pytest -q
+........................................................................ [  9%]
+........................................................................ [ 19%]
+........................................................................ [ 29%]
+........................................................................ [ 39%]
+........................................................................ [ 48%]
+........................................................................ [ 58%]
+........................................................................ [ 68%]
+........................................................................ [ 78%]
+........................................................................ [ 87%]
+........................................................................ [ 97%]
+.................                                                        [100%]
+737 passed in 11.08s
+```
