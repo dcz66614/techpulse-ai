@@ -1188,3 +1188,50 @@ $ uv run pytest -q
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 850 passed, 1 warning in 17.49s
 ```
+
+## O20 Local orchestrator, retry, DLQ, idempotency
+
+- `src/techpulse/workflows/orchestrator.py`: `LocalOrchestrator` runs `techpulse-daily-v1` (08:00 UTC) and `techpulse-weekly-v1` (Monday 09:00 UTC) behind `WorkflowRuntime`. The step chain is `C10`–`C21`, then `D10`–`D40`, `I10`, `I20`, `T10`–`T30`, `E10`, `E20`, `R10`, `Q10`, then publish. SQLite holds checkpoints, the audit log, the DLQ, results keyed by `(task_id, input_sha256)`, and slot fires. `temporalio` is not a dependency.
+- `src/techpulse/workflows/activities.py`: activity context and result types, `PIPELINE_BINDINGS` onto the existing pipeline callables, and a default activity that archives or deduplicates only when local inputs are already in params. Collectors are not opened from that default.
+- Timeout is 3600 seconds. Each task gets 3 attempts. HTTP 429 waits `30 * 2^(attempt-1)` seconds, and at least a positive `Retry-After`. Other retryable failures wait 30 seconds, then 120 seconds. `fatal_error` is not retried. `policy_blocked` sets `source_registry.enabled` to 0 before the next step. Publish inserts `published_reports` only when Q10 `qa_pass` is boolean true.
+- `docs/runbook.md` records the schedules, the caps, the pause/resume path, and the replay lookup.
+- `tests/unit/test_o20_orchestrator.py` uses `tempfile`. A simulated 24h window from 2026-10-26 00:00 UTC fires the daily and weekly slots, and the replay inserts 0 records. The sealed retrieval set was not used.
+- `artifacts/o20-20261028T181854Z/O20/` is on disk and gitignored. That local simulation inserted 40 records and published 2 reports on the first pass (38 activity calls). The replay inserted 0 records, called 0 activities, and `duplicate_records` is 0. `network_calls` is 0. `temporal_server` is false.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 18ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+151 files already formatted
+
+$ uv run mypy
+Success: no issues found in 91 source files
+
+$ uv run pytest -q
+........................................................................ [  8%]
+........................................................................ [ 16%]
+........................................................................ [ 24%]
+........................................................................ [ 33%]
+........................................................................ [ 41%]
+........................................................................ [ 49%]
+........................................................................ [ 57%]
+........................................................................ [ 66%]
+........................................................................ [ 74%]
+........................................................................ [ 82%]
+........................................................................ [ 90%]
+........................................................................ [ 99%]
+........                                                                 [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+872 passed, 1 warning in 20.41s
+```

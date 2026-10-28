@@ -1,23 +1,27 @@
-"""D10 raw archive and lineage.
+"""D10 raw archive and lineage, plus O20 activity bindings.
 
 Collector NDJSON is staged through an object-store interface. This process
 has no S3 endpoint, so the shipped backend writes under the artifacts root.
 SQLite holds the raw-record index. An S3 backend can implement the same
 ``ObjectStore`` methods later.
+
+O20 activity types at the bottom of this module are the local stand-in for
+Temporal activities. They do not open a socket.
 """
 
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 import os
 import re
 import sqlite3
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from jsonschema import Draft202012Validator
 
@@ -775,3 +779,228 @@ def _write_fsynced(path: Path, text: str) -> None:
         handle.write(text)
         handle.flush()
         os.fsync(handle.fileno())
+
+
+class Clock(Protocol):
+    """Time source. Tests pass a clock whose ``sleep`` does not wait on the wall."""
+
+    def now(self) -> datetime: ...
+
+    def sleep(self, seconds: float) -> None: ...
+
+    def advance(self, seconds: float) -> None: ...
+
+
+class ActivityTimeout(Exception):
+    """Raised by an activity that noticed its deadline."""
+
+
+@dataclass(frozen=True)
+class ActivityContext:
+    """One attempt of one pipeline step."""
+
+    task_id: str
+    run_id: str
+    attempt: int
+    input_sha256: str
+    report_kind: str
+    slot: str
+    deadline: datetime
+    clock: Clock
+    params: Mapping[str, object]
+    upstream: Mapping[str, str]
+
+    def check_timeout(self) -> None:
+        if self.clock.now() >= self.deadline:
+            raise ActivityTimeout(self.task_id)
+
+
+@dataclass(frozen=True)
+class ActivityResult:
+    """What one activity attempt returns to the local runtime."""
+
+    status: TaskStatus
+    records: tuple[str, ...] = ()
+    errors: tuple[str, ...] = ()
+    code: str = ""
+    retry_after: float | None = None
+    qa_pass: bool | None = None
+    source_id: str | None = None
+    cost_usd: float = 0.0
+    output_sha256: str = ""
+
+
+class Activity(Protocol):
+    """One Temporal-shaped activity. A worker adapter can call the same object."""
+
+    def __call__(self, context: ActivityContext) -> ActivityResult: ...
+
+
+# Dotted callables for the steps the daily and weekly flows chain.
+# Collectors are named here and are not called unless a test or operator
+# passes an activity that supplies a local transport. The default activity
+# refuses to open one.
+PIPELINE_BINDINGS: dict[str, tuple[str, str]] = {
+    "C10": ("techpulse.collectors.openalex", "collect_openalex"),
+    "C11": ("techpulse.collectors.crossref", "collect_crossref"),
+    "C12": ("techpulse.collectors.arxiv", "collect_arxiv"),
+    "C20": ("techpulse.collectors.github", "GitHubCollector"),
+    "C21": ("techpulse.collectors.hn", "HNCollector"),
+    "D10": ("techpulse.workflows.activities", "archive_collector_ndjson"),
+    "D20": ("techpulse.normalize.clean", "clean_from_manifest"),
+    "D21": ("techpulse.governance.pii", "sanitize_from_clean"),
+    "D30": ("techpulse.normalize.dedup", "deduplicate_records"),
+    "D40": ("techpulse.normalize.entities", "run_entities"),
+    "I10": ("techpulse.index.embed", "build_index_from_run"),
+    "I20": ("techpulse.index.hybrid", "evaluate_retrieval"),
+    "T10": ("techpulse.trends.cluster", "run_cluster"),
+    "T20": ("techpulse.trends.features", "run_features"),
+    "T30": ("techpulse.trends.score", "run_score"),
+    "E10": ("techpulse.evidence.verify", "run_evidence"),
+    "E20": ("techpulse.evidence.contradictions", "run_contradictions"),
+    "R10": ("techpulse.reports.draft", "run_draft"),
+    "Q10": ("techpulse.reports.qa", "run_qa"),
+}
+
+# C21 also owns the compliant RSS collector. It stays unbound until a feed
+# is approved. The daily step id is still C21.
+RSS_BINDING: tuple[str, str] = ("techpulse.collectors.rss", "RSSCollector")
+
+_COLLECTOR_TASKS = frozenset({"C10", "C11", "C12", "C20", "C21"})
+
+
+def resolve_binding(task_id: str) -> Callable[..., object]:
+    """Import the pipeline function named for ``task_id``. Does not call it."""
+    found = PIPELINE_BINDINGS.get(task_id)
+    if found is None:
+        raise KeyError(task_id)
+    module_name, attr = found
+    module = importlib.import_module(module_name)
+    function = getattr(module, attr, None)
+    if not callable(function):
+        raise TypeError(task_id)
+    return cast(Callable[..., object], function)
+
+
+def default_pipeline_activity(context: ActivityContext) -> ActivityResult:
+    """Run a local step when its inputs are already in ``params``.
+
+    Collectors are not started. A missing local input is ``fatal_error``
+    and is not a request. D10 archives ``params['ndjson']`` when the paths
+    are present. D30 deduplicates ``params['records']``.
+    """
+    if context.task_id in _COLLECTOR_TASKS:
+        return ActivityResult(
+            status=TaskStatus.FATAL_ERROR,
+            code="fatal_error",
+            source_id=_text(context.params.get("source_id")),
+            errors=("fatal_error: no local fixture; live collection is not started",),
+        )
+    if context.task_id == "D10":
+        return _run_d10(context)
+    if context.task_id == "D30":
+        return _run_d30(context)
+    return ActivityResult(
+        status=TaskStatus.FATAL_ERROR,
+        code="fatal_error",
+        errors=(f"fatal_error: {context.task_id} has no local inputs",),
+    )
+
+
+def _run_d10(context: ActivityContext) -> ActivityResult:
+    raw = context.params.get("ndjson")
+    database = context.params.get("database")
+    artifacts = context.params.get("artifacts_dir")
+    if not isinstance(raw, bytes) or not isinstance(database, Path):
+        return ActivityResult(
+            status=TaskStatus.FATAL_ERROR,
+            code="fatal_error",
+            errors=("fatal_error: D10 requires ndjson bytes and a database path",),
+        )
+    if not isinstance(artifacts, Path):
+        return ActivityResult(
+            status=TaskStatus.FATAL_ERROR,
+            code="fatal_error",
+            errors=("fatal_error: D10 requires an artifacts directory",),
+        )
+    archived = archive_collector_ndjson(
+        raw,
+        run_id=context.run_id,
+        database=database,
+        store=LocalObjectStore(artifacts),
+        artifacts_dir=artifacts,
+    )
+    keys: tuple[str, ...] = ()
+    if archived.status is TaskStatus.SUCCESS:
+        found: list[str] = []
+        for row in _record_lines(archived):
+            source_id = row.get("source_record_id")
+            if isinstance(source_id, str):
+                found.append(source_id)
+        keys = tuple(found)
+    code = "" if archived.status is TaskStatus.SUCCESS else archived.status.value
+    return ActivityResult(
+        status=archived.status,
+        records=keys,
+        errors=archived.errors,
+        code=code,
+        output_sha256=archived.object_sha256,
+    )
+
+
+def _record_lines(archived: ArchiveResult) -> list[dict[str, object]]:
+    """D10 stores line ids on the manifest directory, not on the metrics dict."""
+    directory = Path(archived.manifest_dir)
+    path = directory / "raw_manifest.json"
+    if not path.is_file():
+        return []
+    loaded = _as_dict(json.loads(path.read_text(encoding="utf-8")))
+    if loaded is None:
+        return []
+    records = loaded.get("records")
+    if not isinstance(records, list):
+        return []
+    rows: list[dict[str, object]] = []
+    for item in records:
+        row = _as_dict(item)
+        if row is not None and isinstance(row.get("source_record_id"), str):
+            rows.append(row)
+    return rows
+
+
+def _run_d30(context: ActivityContext) -> ActivityResult:
+    rows = _record_rows(context.params.get("records"))
+    if rows is None:
+        return ActivityResult(
+            status=TaskStatus.FATAL_ERROR,
+            code="fatal_error",
+            errors=("fatal_error: D30 requires a list of records",),
+        )
+    from techpulse.normalize.dedup import deduplicate_records, record_id
+
+    result = deduplicate_records(rows)
+    keys = tuple(record_id(row) for row in result.rows)
+    digest = hashlib.sha256("|".join(keys).encode("utf-8")).hexdigest()
+    return ActivityResult(
+        status=TaskStatus.SUCCESS,
+        records=keys,
+        output_sha256=digest,
+    )
+
+
+def _record_rows(value: object) -> list[dict[str, Any]] | None:
+    if not isinstance(value, list):
+        return None
+    rows: list[dict[str, Any]] = []
+    for item in value:
+        row = _as_dict(item)
+        if row is None:
+            return None
+        rows.append(row)
+    return rows
+
+
+def _text(value: object) -> str | None:
+    if isinstance(value, str) and value:
+        return value
+    return None
