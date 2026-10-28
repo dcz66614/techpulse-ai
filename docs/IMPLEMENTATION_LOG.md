@@ -683,3 +683,38 @@ $ uv run pytest -q
 ...........................                                              [100%]
 747 passed in 12.72s
 ```
+
+## E10 Claim-evidence packs
+- `src/techpulse/evidence/retrieve.py`: one to three claims from stored trend counts. The template fills integers already on the trend or its T20 row. Support comes from I20, then is graded by quality tier, publication time, and source family. A BM25 score of zero is dropped, so a hashed dense neighbor with no shared token is not support. One D30 cluster contributes one hit. The https URL, raw sha256, date, license, and citation span are copied from the upstream record.
+- `src/techpulse/evidence/verify.py`: confidence is the T30 gate on the retrieved support set. High requires at least three source families, at least two Tier-A ids, a complete citation chain, a finished contrary search, and QA pass. One family is never high. Experimental stays low. Degraded retrieval cannot stay high. A trend with no support is `insufficient_evidence` and leaves the high-confidence list. `LocalObjectStore` writes `evidence_pack.json`, `manifest.json`, and `metrics.json`. SQLite holds the section-5 evidence tables.
+- `tests/unit/test_e10_evidence.py`, `tests/integration/test_e10_pack.py`, and `tests/fixtures/evidence/records.jsonl`. Tests use `tempfile`. The sealed retrieval test set was not used.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.66ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+128 files already formatted
+
+$ uv run mypy
+Success: no issues found in 81 source files
+
+$ uv run pytest -q
+........................................................................ [  9%]
+........................................................................ [ 18%]
+........................................................................ [ 28%]
+........................................................................ [ 37%]
+........................................................................ [ 47%]
+........................................................................ [ 56%]
+........................................................................ [ 66%]
+........................................................................ [ 75%]
+........................................................................ [ 84%]
+........................................................................ [ 94%]
+...........................................                              [100%]
+763 passed in 12.73s
+```
