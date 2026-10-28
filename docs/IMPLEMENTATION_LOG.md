@@ -1235,3 +1235,50 @@ $ uv run pytest -q
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 872 passed, 1 warning in 20.41s
 ```
+
+## O30 Metrics, budget breaker, and alerts
+
+- `src/techpulse/ops/metrics.py`: SQLite rows for token counts, USD, latency, data volume, QA pass, and anomaly blocks, grouped by source, task, model, and customer. The daily cap is $25. Simulated spend of $20 sets mode `degraded` and turns non-essential tier-2 model work off. $25 opens the circuit breaker and stops non-P0 LLM calls. If the metrics store cannot be read, those calls pause. The budgeter has no off switch.
+- `src/techpulse/ops/alerts.py`: P0 failure, source policy change, and stale evidence. Each alert stores `run_id` and a link to a heading in `docs/ops_slo.md`. Log lines drop secret keys and redact token values. Token counts stay numbers.
+- `config/model_router.yaml`: the only model is `local/template`. No paid official API is listed. A higher cap or `budgeter.enabled: false` is rejected.
+- `src/techpulse/workflows/orchestrator.py`: a small hook records the day's spend on the orchestrator SQLite file. At $25 the runtime still pauses with reason `daily budget`.
+- `tests/unit/test_o30_metrics.py` uses `tempfile`. The sealed retrieval set was not used. No `.env` was read. No third-party API was called.
+- `artifacts/o30-20261028T185341Z/O30/` is on disk and gitignored. The $20 probe is `degraded` with the circuit closed. The $25 probe is `stopped` with the circuit open and non-P0 LLM off. `network_calls` is 0. `status` is `success`.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.88ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+157 files already formatted
+
+$ uv run mypy
+Success: no issues found in 94 source files
+
+$ uv run pytest -q
+........................................................................ [  8%]
+........................................................................ [ 16%]
+........................................................................ [ 24%]
+........................................................................ [ 32%]
+........................................................................ [ 40%]
+........................................................................ [ 48%]
+........................................................................ [ 56%]
+........................................................................ [ 64%]
+........................................................................ [ 72%]
+........................................................................ [ 80%]
+........................................................................ [ 88%]
+........................................................................ [ 97%]
+..........................                                               [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+890 passed, 1 warning in 19.93s
+```

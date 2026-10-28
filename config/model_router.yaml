@@ -1,0 +1,43 @@
+# O30 model routes.
+# The only allowed model is the local template. No paid official API is listed.
+# The daily cap is $25. 80% ($20) degrades. 100% ($25) opens the circuit breaker.
+# budgeter.enabled must stay true. The loader rejects any other value.
+schema_version: "1.0"
+daily_cap_usd: 25
+degrade_at_usd: 20
+stop_at_usd: 25
+budgeter:
+  enabled: true
+  disable_allowed: false
+default_model: local/template
+models:
+  - id: local/template
+    provider: local
+    tier: 0
+    paid: false
+    default: true
+    cloud_llm: false
+routes:
+  normal:
+    tier0: local/template
+    tier1: local/template
+    tier2: local/template
+    tier3: local/template
+  degraded:
+    tier0: local/template
+    tier1: local/template
+    tier2_essential: local/template
+    tier2_nonessential: "off"
+    tier3: local/template
+  stopped:
+    non_p0_llm: "off"
+    p0: local/template
+    ingestion: local/template
+    alerts: local/template
+    security: local/template
+  fail_closed:
+    non_p0_llm: "off"
+    p0: local/template
+    ingestion: local/template
+    alerts: local/template
+    security: local/template

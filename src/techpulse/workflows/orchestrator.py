@@ -4,6 +4,9 @@ There is no Temporal server in this process. ``WorkflowRuntime`` is the
 small surface a Temporal worker can implement later. ``LocalOrchestrator``
 is the in-process implementation: SQLite checkpoints, a DLQ, three attempts,
 and replay that looks up ``input_sha256`` before it calls an activity.
+
+The O30 budget hook records spend on the same SQLite file. At $25 it opens
+the circuit breaker and this runtime pauses. The hook cannot be turned off.
 """
 
 from __future__ import annotations
@@ -21,6 +24,7 @@ from pathlib import Path
 from typing import Protocol
 
 from techpulse.contracts import TaskStatus
+from techpulse.ops.metrics import BudgetHook
 from techpulse.workflows.activities import (
     PIPELINE_BINDINGS,
     Activity,
@@ -507,6 +511,12 @@ class LocalOrchestrator:
         )
         self._seed_sources()
         self._reset_counters()
+        self._held: set[str] = set()
+        try:
+            self._budget_hook = BudgetHook(self._conn)
+        except Exception:
+            self._conn.close()
+            raise
 
     def close(self) -> None:
         self._conn.close()
@@ -533,6 +543,7 @@ class LocalOrchestrator:
             raise ValueError("slot requires a timezone")
         slot_text = _iso(slot)
         self._reset_counters()
+        self._held.clear()
         if self.paused():
             return self._report(workflow, "", slot_text, "paused")
         body = (
@@ -597,6 +608,32 @@ class LocalOrchestrator:
         if amount < 0:
             raise ValueError("amount must be >= 0")
         self._charge(amount)
+        self._budget_hook.add_spend(amount, day=self._day())
+
+    def budget_mode(self) -> str:
+        """O30 mode for the clock's UTC day: normal, degraded, stopped, or fail_closed."""
+        return self._budget_hook.decision(day=self._day()).mode
+
+    def llm_allowed(
+        self,
+        *,
+        priority: str,
+        uses_llm: bool,
+        tier: int = 1,
+        essential: bool = True,
+    ) -> bool:
+        """Ask the O30 gate whether this LLM call may run."""
+        decision = self._budget_hook.decision(day=self._day())
+        return decision.allow(
+            priority=priority,
+            uses_llm=uses_llm,
+            tier=tier,
+            essential=essential,
+        )
+
+    def set_metrics_available(self, available: bool) -> None:
+        """Mark the O30 metrics store up or down. The budgeter stays locked."""
+        self._budget_hook.set_metrics_available(available)
 
     def source_enabled(self, source_id: str) -> bool:
         row = self._conn.execute(
@@ -817,7 +854,7 @@ class LocalOrchestrator:
         while not self.paused():
             progressed = False
             for step in steps:
-                if step.task_id in seen:
+                if step.task_id in seen or step.task_id in self._held:
                     continue
                 self.open_task(run_id, step.task_id)
                 state = self._require(run_id, step.task_id)
@@ -831,6 +868,8 @@ class LocalOrchestrator:
                 if not self._deps_ready(workflow, run_id, step):
                     continue
                 self._drive(workflow, run_id, step, root)
+                if step.task_id in self._held:
+                    continue
                 progressed = True
                 current = self._require(run_id, step.task_id)
                 if current.status is TaskStatus.SUCCESS or self._finished(step, current):
@@ -903,8 +942,7 @@ class LocalOrchestrator:
         if step.collector and step.source_id and not self.source_enabled(step.source_id):
             self._block_disabled(run_id, step, digest, key)
             return
-        if self._spent() >= DAILY_MAX_USD:
-            self.pause("daily budget")
+        if not self._budget_allows(step):
             return
         self.transition(
             run_id,
@@ -1031,6 +1069,17 @@ class LocalOrchestrator:
         result = classify_result(raw)
         if result.cost_usd > 0:
             self._charge(result.cost_usd)
+            self._budget_hook.observe_activity(
+                run_id=run_id,
+                task_id=step.task_id,
+                source_id=result.source_id or step.source_id or "none",
+                cost_usd=result.cost_usd,
+                qa_pass=result.qa_pass,
+                anomaly_blocked=result.status is TaskStatus.POLICY_BLOCKED,
+                data_volume=len(result.records),
+                agent_role=step.group,
+                day=self._day(),
+            )
         output = result.output_sha256 or _hash_text("|".join(result.records))
         body: dict[str, object] = {
             "code": result.code,
@@ -1507,6 +1556,23 @@ class LocalOrchestrator:
                 """,
                 (source_id, family, base_url, enabled, when),
             )
+
+    def _day(self) -> str:
+        return self._clock.now().astimezone(UTC).date().isoformat()
+
+    def _budget_allows(self, step: Step) -> bool:
+        """Pause at the $25 breaker. Hold a non-P0 LLM call when the gate says so."""
+        decision = self._budget_hook.decision(day=self._day())
+        if decision.circuit_open or self._spent() >= DAILY_MAX_USD:
+            self.pause("daily budget")
+            return False
+        if decision.allow_task(step.task_id):
+            return True
+        self._budget_hook.log_event(
+            {"event": "llm_paused", "mode": decision.mode, "task_id": step.task_id}
+        )
+        self._held.add(step.task_id)
+        return False
 
     def _spent(self) -> float:
         day = self._clock.now().astimezone(UTC).date().isoformat()

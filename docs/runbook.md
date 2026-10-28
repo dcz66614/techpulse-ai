@@ -55,6 +55,8 @@ The publish gate runs only after `Q10` is `success`. It inserts one `published_r
 
 A task result above $5 is `fatal_error` and is not retried. When the UTC day's spend is already $25, the runtime pauses and does not start another activity.
 
+The O30 budget hook on the same SQLite file records that spend. At $20 (80% of the $25 cap) the mode is `degraded` and non-essential tier-2 model work is off. At $25 the circuit breaker is open and this runtime pauses. The hook cannot be turned off. If the metrics rows cannot be read, non-P0 LLM calls are held and ingestion still runs. Alert handling is in `docs/ops_slo.md`.
+
 ### Scheduler fault
 
 An unexpected exception from an activity pauses the scheduler. The task stays at its last checkpoint (`running` if the attempt had started). New slots do not start. The queue and the audit rows stay. After `resume()`, the same slot continues. A `running` task with no stored result runs that attempt again. Completed tasks are skipped by `input_sha256`.
