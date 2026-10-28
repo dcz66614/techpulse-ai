@@ -562,3 +562,18 @@ $ uv run python -m pytest -q tests/growth
 $ uv run python -m ruff check tests/growth .
 All checks passed!
 ```
+
+## G10fix Remove invented timings
+- `growth/interview_guide.md` no longer states an interview length, a purchase lookback window, or a coding deadline that the plan does not specify. These are now `<INTERVIEW_DURATION>`, `<PURCHASE_LOOKBACK_WINDOW>`, and `<CODING_DEADLINE>`.
+- The remaining numbers in `growth/` trace to the plan or project spec: the `$99/$199/$299` experimental price anchors, the `30/90` day horizon, `sample_1.md`/`sample_2.md`, the `3.1` target-customer section, and task/gate ids such as `G10`, `R10`, `Q10`, and `AUTH-06`.
+- Added `test_interview_guide_has_no_duration_figures` in `tests/growth/test_growth_docs.py`; it rejects any `<number> 分钟` duration figure in the guide.
+- Real check output:
+
+```text
+$ python -m pytest -q tests/growth
+.........                                                                [100%]
+9 passed, 1 warning in 0.03s
+
+$ ruff check tests/growth
+All checks passed!
+```

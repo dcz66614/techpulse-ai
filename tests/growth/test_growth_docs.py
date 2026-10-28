@@ -10,6 +10,7 @@ EMAIL_PATTERN = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 PHONE_PATTERN = re.compile(r"(?<!\d)(?:\+?\d[\d\s\-()]{7,}\d)(?!\d)")
 HTTP_PATTERN = re.compile(r"https?://", re.IGNORECASE)
 PLACEHOLDER_URL_PATTERN = re.compile(r"https?://<[^>\s]+>", re.IGNORECASE)
+DURATION_PATTERN = re.compile(r"\d+\s*(?:[-–—~至]\s*\d+\s*)?分钟")
 
 
 def _read_growth_file(name: str) -> str:
@@ -31,6 +32,12 @@ def test_interview_guide_has_auth06_and_no_contact_patterns() -> None:
     assert "AUTH-06" in text
     assert not EMAIL_PATTERN.search(text), "interview guide must not contain email addresses"
     assert not PHONE_PATTERN.search(text), "interview guide must not contain phone numbers"
+
+
+def test_interview_guide_has_no_duration_figures() -> None:
+    text = _read_growth_file("interview_guide.md")
+    match = DURATION_PATTERN.search(text)
+    assert match is None, f"interview guide must not contain duration figures: {match.group(0)!r}"
 
 
 def test_sample_template_has_required_fields() -> None:
