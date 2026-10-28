@@ -1,0 +1,9 @@
+# Staging template. Do not apply. AUTH-02 is not granted.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: techpulse-staging
+  labels:
+    techpulse.ai/ticket: O10
+    techpulse.ai/scope: staging-only
+    techpulse.ai/digest: pending-AUTH-02

@@ -1,0 +1,19 @@
+# Staging template. Do not apply. AUTH-02 is not granted.
+# ClusterIP only. No Ingress, load balancer, external IP, or domain.
+apiVersion: v1
+kind: Service
+metadata:
+  name: techpulse-api
+  namespace: techpulse-staging
+  labels:
+    app: techpulse-api
+    techpulse.ai/ticket: O10
+    techpulse.ai/digest: pending-AUTH-02
+spec:
+  type: ClusterIP
+  selector:
+    app: techpulse-api
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

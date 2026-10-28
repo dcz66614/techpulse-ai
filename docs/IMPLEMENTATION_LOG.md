@@ -1086,3 +1086,52 @@ $ uv run pytest -q
 826 passed in 13.29s
 ```
 ```
+
+## O10 Release preparation, non-deploy
+
+- `Dockerfile`: base image `python:3.12-slim@sha256:<PINNED_DIGEST>`. The digest is a placeholder. No digest was invented. The file copies `uv.lock` and runs as user `techpulse` (uid 10001). The image install stays commented. The image was not built.
+- `infra/README.md` and `infra/staging/{namespace,deployment,service}.yaml`: staging templates. The image is `pending-auth-02.invalid/techpulse@pending-AUTH-02`. The service is ClusterIP. There is no Ingress. Nothing was applied.
+- `config/deploy.yaml`: `auth02.granted` is false. A missing file, a missing key, or any value other than boolean true is not granted. That scope is staging-only.
+- `src/techpulse/ops/release.py`: the release gate refuses a deploy unless Q10 `qa_pass` is true and AUTH-02 is granted. Production is refused while AUTH-02 is not granted. Staging templates are not a deploy, so the staging target is refused too. `migration_dry_run` applies Alembic head to a caller-owned SQLite file and does not edit `alembic.ini` or open its PostgreSQL URL. `run_smoke` builds the A10 app with `create_app` and checks `/health/live` and `/health/ready` through FastAPI `TestClient`. It does not bind a port and does not read an env file.
+- `scripts/release_manifest.py` writes `artifacts/{run_id}/O10/release_manifest.json`, `manifest.json`, `metrics.json`, and `log.jsonl`. The image digest field is `pending-AUTH-02`. The manifest records the git commit, model version `none` (draft `template-v1/none`, render `render-v1/none`), policy version `policy-2026-10-27`, schema version `1.0`, the source-registry version `1.0.0`, and the Alembic revision. `deployed` stays false even when the gate would allow a release.
+- `scripts/smoke_test.py` and `scripts/migration_dry_run.py` are the local checks. No Docker, no registry, no push, and no deploy.
+- `tests/unit/test_o10_release.py` covers the manifest, the gate, the smoke check, the SQLite dry-run, and the placeholder digest. Tests use `tempfile`. The sealed retrieval test set was not used.
+- `docs/deploy.md` lists what remains blocked on AUTH-02.
+- `artifacts/o10-20261028T173306Z/O10/` is on disk and gitignored. This run passed no Q10 manifest, so `qa_pass` is false and the gate refuses. Smoke passed (`/health/live` 200, `/health/ready` 200). The dry-run reached revision `0002`. `image_digest` is `pending-AUTH-02`. The recorded commit is `519eb001e7edf02e6898c0885e61b35fb0c72f85`, the parent of this commit.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.68ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+150 files already formatted
+
+$ uv run mypy
+Success: no issues found in 90 source files
+
+$ uv run pytest -q
+........................................................................ [  8%]
+........................................................................ [ 16%]
+........................................................................ [ 25%]
+........................................................................ [ 33%]
+........................................................................ [ 42%]
+........................................................................ [ 50%]
+........................................................................ [ 59%]
+........................................................................ [ 67%]
+........................................................................ [ 76%]
+........................................................................ [ 84%]
+........................................................................ [ 92%]
+............................................................             [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+852 passed, 1 warning in 13.97s
+```

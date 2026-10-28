@@ -1,0 +1,61 @@
+# Staging template. Do not apply. AUTH-02 is not granted.
+# The image digest is pending-AUTH-02. Replace it only after the Dockerfile
+# placeholder <PINNED_DIGEST> is filled from the registry and the image is built.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: techpulse-api
+  namespace: techpulse-staging
+  labels:
+    app: techpulse-api
+    techpulse.ai/ticket: O10
+    techpulse.ai/digest: pending-AUTH-02
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: techpulse-api
+  template:
+    metadata:
+      labels:
+        app: techpulse-api
+        techpulse.ai/digest: pending-AUTH-02
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: api
+          image: pending-auth-02.invalid/techpulse@pending-AUTH-02
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          env:
+            - name: APP_ENV
+              value: staging
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 10001
+            capabilities:
+              drop:
+                - ALL
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

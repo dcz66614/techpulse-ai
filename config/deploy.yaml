@@ -1,0 +1,7 @@
+# O10 deployment authorization.
+# AUTH-02 is an approved deployment environment: boundaries, a cloud cap,
+# and domain use. granted must be boolean true. A missing file, a missing
+# key, or any other value is not granted.
+# Not granted means staging-only. The release gate refuses production.
+auth02:
+  granted: false
