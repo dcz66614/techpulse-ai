@@ -20,7 +20,7 @@ import httpx
 import pytest
 from pytest import MonkeyPatch
 
-from techpulse.governance.egress import check_egress
+from techpulse.governance.egress import check_egress, load_domain_allowlist
 from techpulse.governance.policy import (
     PolicyBlocked,
     executable_requests,
@@ -31,6 +31,7 @@ from techpulse.governance.policy import (
     unauthorized_tool_call_count,
     write_audit_log,
 )
+from techpulse.redteam import extract_egress_targets, target_host, tool_names_in
 
 ROOT = Path(__file__).resolve().parents[2]
 CASES_DIR = Path(__file__).resolve().parent / "cases"
@@ -81,23 +82,6 @@ ROLE_TOOL_CALLS: tuple[tuple[str, str], ...] = (
     ("PolicyAgent", "write_repo"),
 )
 
-# Egress targets that appear (in spirit) in case payloads; none is reachable.
-_EGRESS_URLS: tuple[str, ...] = (
-    "https://evil.example/collect",
-    "http://evil.example/collect",
-    "https://api.openalex.org.evil.example/works",
-    "https://api.github.com/repos/techpulse/leak",
-    "https://user:ghp_000000000000000000000000000000000000@api.openalex.org/works",
-    "https://127.0.0.1:8080/admin",
-    "https://169.254.169.254/latest/meta-data/",
-    "https://localhost:9200/_search",
-    "ftp://evil.example/payload.sh",
-    "file:///etc/passwd",
-    "https://openalex-api.com/works",
-    "https://EVIL.example/collect",
-    "https://evil.example/api.openalex.org/works",
-)
-
 _EGRESS_ROLES: tuple[str, ...] = (
     "CollectorAgent",
     "CleanerAgent",
@@ -105,6 +89,9 @@ _EGRESS_ROLES: tuple[str, ...] = (
     "QAAgent",
     "OpsAgent",
 )
+
+# Roles that replay egress checks in the per-case tests.
+CHECK_EGRESS_ROLES = _EGRESS_ROLES
 
 
 def _case_files() -> list[Path]:
@@ -169,10 +156,34 @@ def _fence_intact(fenced: str) -> bool:
 
 
 def _tool_names_in(text: str) -> set[str]:
-    names: set[str] = set()
-    for match in re.finditer(r'"(?:tool_call|function_call)","name":"([A-Za-z0-9_]+)"', text):
-        names.add(match.group(1))
-    return names
+    return tool_names_in(text)
+
+
+@pytest.mark.parametrize("case", CASE_FILES, ids=_case_id)
+def test_case_egress_targets_are_blocked(case: Path) -> None:
+    """Every URL/host extracted from the case payload is blocked by the egress guard."""
+    payload = _payload(case)
+    allowlist = load_domain_allowlist(registry_path=REGISTRY, policy_path=POLICY)
+    targets = extract_egress_targets(payload)
+    if targets:
+        assert all(target_host(t) != "api.openalex.org" for t in targets)
+    for target in targets:
+        host = target_host(target)
+        if host is not None and host in allowlist:
+            # Reachable by design for allowlisted_get roles; not an egress violation.
+            continue
+        for role in CHECK_EGRESS_ROLES:
+            with pytest.raises(PolicyBlocked):
+                check_egress(role, "GET", target, registry_path=REGISTRY, policy_path=POLICY)
+
+
+def test_every_case_has_extractable_payload_egress_corpus() -> None:
+    """The extraction helper sees the egress targets the corpus actually carries."""
+    corpus_targets = {
+        target for case in CASE_FILES for target in extract_egress_targets(_payload(case))
+    }
+    assert corpus_targets, "no egress targets extracted from any case payload"
+    assert all("evil.example" in t for t in corpus_targets)
 
 
 @pytest.mark.parametrize("case", CASE_FILES, ids=_case_id)
@@ -227,7 +238,7 @@ def test_all_five_frozen_categories_present() -> None:
 
 
 @pytest.mark.parametrize("case", CASE_FILES, ids=_case_id)
-def test_payload_cannot_authorise_a_tool_call(case: Path, monkeypatch: MonkeyPatch) -> None:
+def test_case_cannot_authorise_a_tool_call(case: Path, monkeypatch: MonkeyPatch) -> None:
     """No payload text, fenced or raw, produces an authorised tool call."""
     _guard(monkeypatch)
     payload = _payload(case)
@@ -252,7 +263,20 @@ def test_role_cannot_call_forbidden_tool(role: str, tool: str) -> None:
     assert unauthorized_tool_call_count() == 0
 
 
-@pytest.mark.parametrize("url", _EGRESS_URLS)
+def _extracted_http_targets() -> list[str]:
+    """HTTP(S) targets extracted from every case payload, deduplicated."""
+    targets: list[str] = []
+    seen: set[str] = set()
+    for case in CASE_FILES:
+        for target in extract_egress_targets(_payload(case)):
+            if target.lower().startswith(("http://", "https://")) and target not in seen:
+                seen.add(target)
+                targets.append(target)
+    assert targets, "no HTTP egress targets extracted from any case payload"
+    return targets
+
+
+@pytest.mark.parametrize("url", _extracted_http_targets())
 def test_payload_egress_targets_are_blocked(url: str) -> None:
     """No egress target from any case payload is allowlisted for any role."""
     for role in _EGRESS_ROLES:
@@ -318,7 +342,7 @@ def test_http_get_egress_through_guarded_client() -> None:
             policy_path=POLICY,
         )
 
-    for url in _EGRESS_URLS:
+    for url in _extracted_http_targets():
         with httpx.Client(transport=FailTransport(), event_hooks={"request": [hook]}) as client:
             with pytest.raises(PolicyBlocked):
                 client.get(url)
