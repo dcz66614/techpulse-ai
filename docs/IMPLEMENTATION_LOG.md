@@ -431,3 +431,38 @@ Success: no issues found in 73 source files
 $ uv run pytest -q
 689 passed in 11.80s
 ```
+
+## I10 Embedding and index versioning
+- `src/techpulse/index/embed.py`: `Embedder` with `HashedNgramEmbedder` (deterministic hashed character n-gram TF, used by tests, no downloaded weights) and `OpenAICompatibleEmbedder` (base URL from `TECHPULSE_EMBED_BASE_URL`, key read from the env var named by `TECHPULSE_EMBED_API_KEY_ENV`). The remote path stays off unless `TECHPULSE_EMBED_REMOTE` is set, and tests never call it. This module does not open a `.env` file.
+- Vectors and the index-version manifest are stored in SQLite. `migrations/0002_search_indexes.sql` is the PostgreSQL 16 + pgvector target (`vector(256)`, HNSW cosine, GIN text). This host has no PostgreSQL, so EXPLAIN was not run. Alembic applies `0002_search_indexes.sqlite.sql` here and stores embeddings as float32 BLOBs. Rows are written to `chunk_vectors_staging`, copied, then the `published` pointer moves in one transaction.
+- Inputs are D21 sanitized rows when that run succeeded and is not isolated, otherwise D20. Secrets, HTML or control characters, and blocked or unknown licences are not indexed. The same run and corpus does not insert again. An embedder failure writes a text-only version, marks it degraded, and leaves the published pointer unchanged. Vector objects go through `ObjectStore`; `LocalObjectStore` writes under the artifacts root. No S3 client.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.60ms
+
+$ uv run ruff check .
+Resolved 88 packages in 0.66ms
+All checks passed!
+
+$ uv run ruff format --check .
+109 files already formatted
+
+$ uv run mypy
+Success: no issues found in 69 source files
+
+$ uv run pytest -q
+........................................................................ [ 10%]
+........................................................................ [ 21%]
+........................................................................ [ 31%]
+........................................................................ [ 42%]
+........................................................................ [ 53%]
+........................................................................ [ 63%]
+........................................................................ [ 74%]
+........................................................................ [ 85%]
+........................................................................ [ 95%]
+.............................                                            [100%]
+677 passed in 11.74s
+```
