@@ -1,7 +1,7 @@
 # TechPulse-AI 样报 sample_1
 
 > **标注：AI 生成。**
-> publication_status: internal demo only
+> publication_status: publishable
 > 本文件由已提交的本地 fixture 经 R10 草稿、R20 渲染与 Q10 审查后生成。
 > 事实、数字和链接只复制这些输出。本脚本不联系第三方。对外发送需要 AUTH-06。
 
@@ -22,11 +22,11 @@
 - llm_calls: 0
 - paid_api_calls: 0
 - third_party_writes: 0
-- source_version: 50cf3459fd12defef08dda40a18785f7b33cea1ca877e2815beb9efe674cb1de
-- q10_status: fail
-- qa_pass: false
-- release_status: BLOCKED
-- publication_status: internal demo only
+- source_version: a0fbd89b628d7e9f53b44869908676bcf308aa4d9960ec47d086a21ba3519267
+- q10_status: pass
+- qa_pass: true
+- release_status: PASS
+- publication_status: publishable
 - ai_label: AI 生成
 
 - trend_id: trend:topic:rag:7:2026-10-28
@@ -61,11 +61,7 @@ hypothesis：将主题 topic:rag 的独立记录数由 4 变为 10 解释为增�
 
 ## 反证
 
-同源转载：证据 ev_6bb5615616ad288162280ef1aec763f5 与已保留证据 ev_ff96506fde69d09124dadb7cc1b9572e 属于同一来源簇，不作为独立反证，也不作为新的事实。
-
-同源转载：证据 ev_6bb5615616ad288162280ef1aec763f5 与已保留证据 ev_ff96506fde69d09124dadb7cc1b9572e 属于同一来源簇，不作为独立反证，也不作为新的事实。
-
-同源转载：证据 ev_6bb5615616ad288162280ef1aec763f5 与已保留证据 ev_ff96506fde69d09124dadb7cc1b9572e 属于同一来源簇，不作为独立反证，也不作为新的事实。
+无。
 
 ## 未知项
 
@@ -74,6 +70,8 @@ hypothesis：将主题 topic:rag 的独立记录数由 4 变为 10 解释为增�
 ## 方法
 
 本草稿由确定性模板 template-v1 生成。提示词/模型版本为 template-v1/none。未调用语言模型，未调用付费 API。事实句只引用证据 ID。推断句带 hypothesis 标记。证据不足或已有冲突的内容不写成事实。数字取自证据包中已存储的主张输入，保持原有计数或分数。链接只复制已通过 schema 的 source_url。
+
+另有 3 条同源转载已合并。
 
 ## 链接目录
 
@@ -93,9 +91,9 @@ ev_ff96506fde69d09124dadb7cc1b9572e | https://example.org/openalex/rag-a | a1181
 - 提示词/模型版本：render-v1/none
 - 状态：success
 - run_id：g10-fixture-sample-1
-- source_version：50cf3459fd12defef08dda40a18785f7b33cea1ca877e2815beb9efe674cb1de
+- source_version：a0fbd89b628d7e9f53b44869908676bcf308aa4d9960ec47d086a21ba3519267
 - contradictions：83d5f158dd1c9b2e26c5f9d0ecd09948e60dbc195b6f482e55e4f7d36a5f530a
-- draft：e7b572d4207668e29030350192ae9a059df563486be7fd6a738e6149e44d1a29
+- draft：d708813d7cec1cfc5be067bdffe39c58584fa01897cfe0f4664f033604ffabc9
 - entities：94aa492012d36a47c71941852b1081f62990daa15a92257522bc80c94b780858
 - evidence_pack：f9554dd76c64b9e52bee7dd45fd7a843a0e784f81a148260914771328942fac5
 - trends：ec22a50aedff7d0c3883aab5ec5cb9fbdc34e9af672ee6e7694ad9bc96585993
@@ -191,9 +189,9 @@ ev_ff96506fde69d09124dadb7cc1b9572e | https://example.org/openalex/rag-a | a1181
 - 提示词/模型版本：render-v1/none
 - 状态：success
 - run_id：g10-fixture-sample-1
-- source_version：50cf3459fd12defef08dda40a18785f7b33cea1ca877e2815beb9efe674cb1de
+- source_version：a0fbd89b628d7e9f53b44869908676bcf308aa4d9960ec47d086a21ba3519267
 - contradictions：83d5f158dd1c9b2e26c5f9d0ecd09948e60dbc195b6f482e55e4f7d36a5f530a
-- draft：e7b572d4207668e29030350192ae9a059df563486be7fd6a738e6149e44d1a29
+- draft：d708813d7cec1cfc5be067bdffe39c58584fa01897cfe0f4664f033604ffabc9
 - entities：94aa492012d36a47c71941852b1081f62990daa15a92257522bc80c94b780858
 - evidence_pack：f9554dd76c64b9e52bee7dd45fd7a843a0e784f81a148260914771328942fac5
 - trends：ec22a50aedff7d0c3883aab5ec5cb9fbdc34e9af672ee6e7694ad9bc96585993
@@ -207,69 +205,14 @@ ev_ff96506fde69d09124dadb7cc1b9572e | https://example.org/openalex/rag-a | a1181
 ```json
 {
   "attempt": 1,
-  "blockers": [
-    {
-      "claim_id": "rc_9e70779c9fb51a31",
-      "code": "citation_coverage",
-      "reason": "evidence id is not in the evidence pack",
-      "route": "E10"
-    },
-    {
-      "claim_id": "rc_d213aa8433aa7a84",
-      "code": "citation_coverage",
-      "reason": "evidence id is not in the evidence pack",
-      "route": "E10"
-    },
-    {
-      "claim_id": "rc_d280422f4f2c4f6c",
-      "code": "citation_coverage",
-      "reason": "evidence id is not in the evidence pack",
-      "route": "E10"
-    },
-    {
-      "claim_id": "rc_9e70779c9fb51a31",
-      "code": "numeric_date_consistency",
-      "reason": "evidence date is not in the pack",
-      "route": "E10"
-    },
-    {
-      "claim_id": "rc_d213aa8433aa7a84",
-      "code": "numeric_date_consistency",
-      "reason": "evidence date is not in the pack",
-      "route": "E10"
-    },
-    {
-      "claim_id": "rc_d280422f4f2c4f6c",
-      "code": "numeric_date_consistency",
-      "reason": "evidence date is not in the pack",
-      "route": "E10"
-    },
-    {
-      "claim_id": "rc_9e70779c9fb51a31",
-      "code": "url_traceability",
-      "reason": "source url is not traceable to a stored raw record",
-      "route": "E10"
-    },
-    {
-      "claim_id": "rc_d213aa8433aa7a84",
-      "code": "url_traceability",
-      "reason": "source url is not traceable to a stored raw record",
-      "route": "E10"
-    },
-    {
-      "claim_id": "rc_d280422f4f2c4f6c",
-      "code": "url_traceability",
-      "reason": "source url is not traceable to a stored raw record",
-      "route": "E10"
-    }
-  ],
+  "blockers": [],
   "checks": {
     "citation_coverage": {
-      "denominator": 7,
+      "denominator": 4,
       "numerator": 4,
-      "passed": false,
+      "passed": true,
       "threshold": 0.95,
-      "value": 0.5714285714285714
+      "value": 1.0
     },
     "format": {
       "denominator": 1,
@@ -279,11 +222,11 @@ ev_ff96506fde69d09124dadb7cc1b9572e | https://example.org/openalex/rag-a | a1181
       "value": 1.0
     },
     "numeric_date_consistency": {
-      "denominator": 43,
-      "numerator": 40,
-      "passed": false,
+      "denominator": 37,
+      "numerator": 37,
+      "passed": true,
       "threshold": 0.98,
-      "value": 0.9302325581395349
+      "value": 1.0
     },
     "pii": {
       "denominator": null,
@@ -300,32 +243,26 @@ ev_ff96506fde69d09124dadb7cc1b9572e | https://example.org/openalex/rag-a | a1181
       "value": 0
     },
     "url_traceability": {
-      "denominator": 7,
+      "denominator": 4,
       "numerator": 4,
-      "passed": false,
+      "passed": true,
       "threshold": 1.0,
-      "value": 0.5714285714285714
+      "value": 1.0
     }
   },
   "evidence_modified": false,
   "human_review_queue": false,
   "llm_calls": 0,
   "paid_api_calls": 0,
-  "qa_pass": false,
-  "release_status": "BLOCKED",
+  "qa_pass": true,
+  "release_status": "PASS",
   "report_id": "report:g10-fixture-sample-1:weekly",
-  "routes": {
-    "E10": [
-      "evidence id is not in the evidence pack",
-      "evidence date is not in the pack",
-      "source url is not traceable to a stored raw record"
-    ]
-  },
+  "routes": {},
   "run_id": "g10-fixture-sample-1",
   "schema_version": "1.0",
-  "signature": null,
-  "signed": false,
-  "status": "fail",
+  "signature": "15ba3b0a203a5b171949de9ddb98ff5e0d8a24a4d6cdb971af11b4ef5282638b",
+  "signed": true,
+  "status": "pass",
   "third_party_writes": 0,
   "ticket": "Q10"
 }

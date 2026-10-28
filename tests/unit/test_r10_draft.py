@@ -16,6 +16,7 @@ from techpulse.evidence.contradictions import review_contradictions
 from techpulse.evidence.verify import build_evidence_pack
 from techpulse.reports import draft as draft_module
 from techpulse.reports.draft import draft_report, run_draft
+from techpulse.reports.qa import review_report
 
 TREND = "trend:topic:rag:7:2026-10-28"
 START = "2026-10-22T00:00:00Z"
@@ -39,14 +40,16 @@ def test_every_claim_maps_to_an_evidence_id() -> None:
     assert draft.metrics["llm_calls"] == 0
     assert draft.metrics["paid_api_calls"] == 0
     assert draft.metrics["third_party_writes"] == 0
-    known = _known_ids(pack, review)
+    pack_ids = {str(item["evidence_id"]) for item in _rows(pack["evidence"])}
     claims = _rows(draft.document["claims"])
     assert claims
-    assert {claim["kind"] for claim in claims} >= {"fact", "hypothesis", "counter"}
+    assert {claim["kind"] for claim in claims} >= {"fact", "hypothesis"}
+    assert all(claim["template"] != "reprint" for claim in claims)
     for claim in claims:
         evidence_ids = _strings(claim["evidence_ids"])
         assert evidence_ids
-        assert set(evidence_ids) <= known
+        assert set(evidence_ids) <= pack_ids
+        assert "ev_reprint" not in evidence_ids
         for evidence_id in evidence_ids:
             assert evidence_id in str(claim["text"])
         for number in _rows(claim["numbers"]):
@@ -63,9 +66,10 @@ def test_every_claim_maps_to_an_evidence_id() -> None:
     assert "不是事实" in str(hypothesis["text"])
     diversity = next(claim for claim in facts if claim["template"] == "diversity_7d")
     assert "academic、code、community" in str(diversity["text"])
-    reprint = next(claim for claim in claims if claim["template"] == "reprint")
-    assert "同源转载" in str(reprint["text"])
-    assert "ev_reprint" in str(reprint["text"])
+    before_method, method = draft.markdown.split("## 方法", 1)
+    assert "同源转载" not in before_method
+    assert "ev_reprint" not in draft.markdown
+    assert "另有 1 条同源转载已合并。" in method
     assert REPRINT_URL not in draft.markdown
     head, directory = draft.markdown.split("## 链接目录", 1)
     assert "https://" not in head
@@ -449,6 +453,74 @@ def test_real_e10_pack_and_e20_review_render_without_invented_numbers() -> None:
     assert again.document["claims"] == []
 
 
+def test_reprint_count_comes_from_e20_rows_and_q10_passes() -> None:
+    pack, review, trends = _success_inputs()
+    extra = {
+        "trend_id": TREND,
+        "claim_id": "cl_growth",
+        "evidence_id": "ev_reprint_two",
+        "kept_evidence_id": "ev_support",
+        "source_url": "https://example.org/reprint-two",
+    }
+    reprints = [*_rows(review["reprints"]), extra]
+    review = dict(review)
+    review["reprints"] = reprints
+    draft = draft_report(pack, review, trends, run_id="r10-reprints")
+    pack_ids = {str(item["evidence_id"]) for item in _rows(pack["evidence"])}
+    claims = _rows(draft.document["claims"])
+    cited: set[str] = set()
+    for claim in claims:
+        cited.update(_strings(claim["evidence_ids"]))
+    assert cited
+    assert cited <= pack_ids
+    assert "ev_reprint" not in cited
+    assert "ev_reprint_two" not in cited
+    assert "ev_reprint" not in draft.markdown
+    assert "ev_reprint_two" not in draft.markdown
+    assert "另有 2 条同源转载已合并。" in draft.markdown.split("## 方法", 1)[1]
+    result = review_report(
+        draft.document,
+        pack,
+        markdown=draft.markdown,
+        features=[_feature()],
+        raw_records=[_raw_support()],
+        run_id="r10-reprints",
+    )
+    assert result.qa_pass is True
+    assert result.document["status"] == "pass"
+    assert result.document["blockers"] == []
+    injected_text = "同源转载：证据 ev_reprint 与已保留证据 ev_support 属于同一来源簇。"
+    injected = {
+        "claim_id": "rc_injected_reprint",
+        "source_claim_id": "cl_growth",
+        "trend_id": TREND,
+        "section": "counter_evidence",
+        "kind": "counter",
+        "template": "reprint",
+        "text": injected_text,
+        "evidence_ids": ["ev_reprint", "ev_support"],
+        "numbers": [],
+    }
+    report = dict(draft.document)
+    report["claims"] = [*claims, injected]
+    markdown = draft.markdown.replace("## 反证\n\n无。\n", f"## 反证\n\n{injected_text}\n", 1)
+    assert injected_text in markdown
+    failed = review_report(
+        report,
+        pack,
+        markdown=markdown,
+        features=[_feature()],
+        raw_records=[_raw_support()],
+        run_id="r10-reprints",
+    )
+    assert failed.qa_pass is False
+    assert failed.document["release_status"] == "BLOCKED"
+    blockers = _rows(failed.document["blockers"])
+    citation = next(item for item in blockers if item["code"] == "citation_coverage")
+    assert citation["reason"] == "evidence id is not in the evidence pack"
+    assert citation["route"] == "E10"
+
+
 def test_module_does_not_call_a_model_api() -> None:
     source = inspect.getsource(draft_module)
     folded = source.lower()
@@ -568,6 +640,18 @@ def _review(**overrides: object) -> dict[str, object]:
 
 def _trends() -> list[dict[str, object]]:
     return [{"trend_id": TREND, "topic": "topic:rag", "window_days": 7, "score": 0.5}]
+
+
+def _raw_support() -> dict[str, object]:
+    return {
+        "source_id": "openalex",
+        "source_record_id": "paper",
+        "canonical_url": SUPPORT_URL,
+        "content_sha256": "a" * 64,
+        "published_at": "2026-10-22T00:00:00Z",
+        "collected_at": COLLECTED,
+        "license_status": "metadata_only",
+    }
 
 
 def _evidence(evidence_id: str, url: str, digest: str | None = None) -> dict[str, object]:

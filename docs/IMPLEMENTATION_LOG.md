@@ -1023,18 +1023,32 @@ $ uv run pytest -q
 - `src/techpulse/api/main.py`, `routes.py`, and `auth.py`: FastAPI read endpoints for health, trends, evidence, reports, and internal `/metrics`. Responses use Pydantic models, `as_of`, and `schema_version` `1.0`. A report is public only when its object-store QA manifest has `qa_pass`, `signed`, and the same `report_id`. A trend or evidence row is public only when such a snapshot names it and the SQL row is valid. Unknown or blocked licenses stay out of the response. Cursors are HMAC-SHA256 using `TECHPULSE_CURSOR_HMAC_KEY` from the process environment. Read tokens, the anonymous threshold, request ids, the CORS allow-list, and an in-process rate limit also come from the environment. SQLite opens read-only. Object bytes go through the existing `LocalObjectStore`. There are no write routes.
 - `tests/contract/test_api.py`: FastAPI `TestClient` checks for the contract, including 404, 400, and 403. No live server and no network. Fixtures use `tempfile`. The sealed retrieval test set was not used.
 - `src/techpulse/reports/render.py` and `tests/unit/test_r20_render.py`: `ruff format` reflow, and six mypy 2.4.0 errors that were already present on those files at `2460d12`. The disputed series is stored as `list[dict[str, object]]`, the window sort key narrows `window_days` to `int`, and the tests pass object fields through `str`. Dossier content is unchanged.
+## RPfix Cite only pack evidence
+
+- `src/techpulse/reports/draft.py`: R10 no longer writes a claim for an E20 reprint. Reprint rows stay out of the link index. The method section records the E20 row count as `另有 N 条同源转载已合并。` The sentence cites no evidence id. Q10 does not scan the method section, so the count is not an unclaimed fact. `qa.py` and E10 pack membership are unchanged.
+- `tests/unit/test_r10_draft.py`: a draft with reprint rows cites only pack ids, and the count matches the E20 list. Q10 passes on that draft. An injected reprint citation still fails with `evidence id is not in the evidence pack`.
+- `tests/unit/test_q10_qa.py`: the clean fixture still passes. Injecting a reprint id into that fixture still fails Q10.
+- `scripts/build_samples.py` was re-run. `growth/sample_1.md` and `growth/sample_2.md` were regenerated. The sealed retrieval test set was not used.
+
+Real Q10 results from that run:
+
+- `sample_1` (7-day): `status: pass`, `qa_pass: true`, `release_status: PASS`, `signed: true`, `blockers: []`. Citation coverage 4/4, URL traceability 4/4, numeric and date consistency 37/37. Signature `15ba3b0a203a5b171949de9ddb98ff5e0d8a24a4d6cdb971af11b4ef5282638b`. The method note is `另有 3 条同源转载已合并。` Label: `publishable`.
+- `sample_2` (28-day): `status: pass`, `qa_pass: true`, `release_status: PASS`, `signed: true`, `blockers: []`. Citation coverage 2/2, URL traceability 2/2, numeric and date consistency 19/19. Signature `a0c2bfe5516805208a8221535f436568b81ebead54c87347c90573e0658216f9`. The method note is `另有 2 条同源转载已合并。` Label: `publishable`.
+- Both files still say external sending needs AUTH-06.
 
 Real check output:
 
 ```text
 $ uv lock --check
 Resolved 88 packages in 0.87ms
+Resolved 88 packages in 0.96ms
 
 $ uv run ruff check .
 All checks passed!
 
 $ uv run ruff format --check .
 138 files already formatted
+135 files already formatted
 
 $ uv run mypy
 Success: no issues found in 87 source files
@@ -1059,4 +1073,16 @@ $ uv run pytest -q
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 837 passed, 1 warning in 12.86s
+........................................................................ [ 26%]
+........................................................................ [ 34%]
+........................................................................ [ 43%]
+........................................................................ [ 52%]
+........................................................................ [ 61%]
+........................................................................ [ 69%]
+........................................................................ [ 78%]
+........................................................................ [ 87%]
+........................................................................ [ 95%]
+..................................                                       [100%]
+826 passed in 13.29s
+```
 ```

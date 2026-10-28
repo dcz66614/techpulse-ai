@@ -9,9 +9,11 @@ stated as facts. An inference is labelled ``hypothesis``.
 ``template_version`` is ``template-v1``. The prompt/model version is
 ``template-v1/none``. An evidence id counts only when an evidence item in the
 pack carries it. A claim that cites an id absent from the pack is not stated
-as a fact and is recorded as an omission. When a previous id list already
-contains every counted id, or when nothing can be cited, the status is
-``no_material_update``.
+as a fact and is recorded as an omission. E20 reprint rows are not cited.
+The method section records only the row count, for example
+``另有 N 条同源转载已合并``. That count is not a claim. When a previous id
+list already contains every counted id, or when nothing can be cited, the
+status is ``no_material_update``.
 
 Bytes for the JSON artifacts go through ``ObjectStore``. The local backend
 writes under the artifacts directory. The Markdown file is the draft under
@@ -177,7 +179,7 @@ def draft_report(
     prior = _prior(previous_evidence_ids)
     new_ids = None if prior is None else tuple(sorted(seen - prior))
     unchanged = prior is not None and not new_ids
-    claims, omissions, links = _assemble(evidence_pack, contradictions, trends)
+    claims, omissions, links, reprint_note = _assemble(evidence_pack, contradictions, trends)
     if unchanged or not claims:
         flagged = [dict(item) for item in omissions if item.get("reason") == "evidence_not_in_pack"]
         return _terminal(
@@ -199,6 +201,7 @@ def draft_report(
         tuple(sorted(seen)),
         compared=prior is not None,
         new_ids=new_ids,
+        reprint_note=reprint_note,
     )
 
 
@@ -271,6 +274,7 @@ def _publish(
     *,
     compared: bool,
     new_ids: tuple[str, ...] | None,
+    reprint_note: str | None,
 ) -> ReportDraft:
     document = _document(
         "success",
@@ -282,7 +286,7 @@ def _publish(
         omissions=[dict(item) for item in omissions],
         links=[dict(item) for item in links],
     )
-    markdown = _markdown(document, claims, omissions, links)
+    markdown = _markdown(document, claims, omissions, links, reprint_note)
     metrics = _metrics(
         "success",
         claims,
@@ -335,7 +339,7 @@ def _assemble(
     evidence_pack: Mapping[str, object],
     contradictions: Mapping[str, object],
     trends: Sequence[Mapping[str, object]],
-) -> tuple[list[_Claim], list[dict[str, object]], list[dict[str, object]]]:
+) -> tuple[list[_Claim], list[dict[str, object]], list[dict[str, object]], str | None]:
     topics = _topics(evidence_pack, trends)
     valid = _valid_index(evidence_pack, contradictions)
     present = _pack_evidence_ids(evidence_pack)
@@ -359,11 +363,10 @@ def _assemble(
             built,
             omissions,
         )
-    _consume_reprints(reprint_rows, built)
     _consume_incomplete(contradictions, claims_in, valid, built, omissions)
     built.sort(key=_claim_sort)
     links = [valid[key] for key in sorted(valid)]
-    return built, omissions, links
+    return built, omissions, links, _reprint_note(reprint_rows)
 
 
 def _consume_claim(
@@ -488,40 +491,16 @@ def _consume_blocked(
         omissions.append(_omission(claim_id, trend_id, template, "conflict"))
 
 
-def _consume_reprints(
-    reprint_rows: Sequence[Mapping[str, object]],
-    built: list[_Claim],
-) -> None:
-    for item in reprint_rows:
-        trend_id = _safe_id(item.get("trend_id")) or ""
-        source_claim = _safe_id(item.get("claim_id")) or ""
-        reprint_id = _safe_id(item.get("evidence_id"))
-        kept_id = _safe_id(item.get("kept_evidence_id"))
-        ids = tuple(evidence_id for evidence_id in (reprint_id, kept_id) if evidence_id)
-        if trend_id == "" or not ids:
-            continue
-        if reprint_id and kept_id:
-            text = (
-                f"同源转载：证据 {reprint_id} 与已保留证据 {kept_id} 属于同一来源簇，"
-                "不作为独立反证，也不作为新的事实。"
-            )
-            source_id = source_claim or reprint_id
-        else:
-            only = reprint_id or kept_id or ""
-            text = f"同源转载：证据 {only} 不作为独立反证，也不作为新的事实。"
-            source_id = source_claim or only
-        built.append(
-            _make(
-                trend_id,
-                source_id,
-                "counter_evidence",
-                "counter",
-                "reprint",
-                text,
-                ids,
-                (),
-            )
-        )
+def _reprint_note(reprint_rows: Sequence[Mapping[str, object]]) -> str | None:
+    """Count E20 reprint rows without citing them.
+
+    The sentence sits in the method section. Q10 does not scan that section,
+    so the count is not an unclaimed fact and does not need an evidence id.
+    """
+    count = len(reprint_rows)
+    if count < 1:
+        return None
+    return f"另有 {count} 条同源转载已合并。"
 
 
 def _consume_incomplete(
@@ -687,6 +666,7 @@ def _markdown(
     claims: Sequence[_Claim],
     omissions: Sequence[Mapping[str, object]],
     links: Sequence[Mapping[str, object]],
+    reprint_note: str | None = None,
 ) -> str:
     lines = _header(document)
     grouped: dict[str, list[_Claim]] = {section: [] for section in _SECTION_ORDER}
@@ -696,7 +676,10 @@ def _markdown(
     for section in _SECTION_ORDER:
         extra = unknown_notes if section == "unknowns" else []
         lines.extend(_section_block(_SECTION_TITLE[section], grouped.get(section, ()), extra))
-    lines.extend(["## 方法", "", _METHOD, "", "## 链接目录", ""])
+    lines.extend(["## 方法", "", _METHOD, ""])
+    if reprint_note is not None:
+        lines.extend([reprint_note, ""])
+    lines.extend(["## 链接目录", ""])
     if links:
         for link in links:
             lines.append(_link_line(link))
@@ -962,7 +945,8 @@ def _valid_index(
     index: dict[str, dict[str, object]] = {}
     for item in _mappings(evidence_pack.get("evidence")):
         _put_valid(index, item)
-    for key in ("contradictions", "reprints", "qa_queue"):
+    # Reprint rows are often outside the pack. They are a count, not links.
+    for key in ("contradictions", "qa_queue"):
         for item in _mappings(contradictions.get(key)):
             _put_valid(index, item)
     return index

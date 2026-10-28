@@ -249,6 +249,23 @@ def test_fail_format_when_claim_text_is_absent_from_the_draft() -> None:
     assert result.qa_pass is False
 
 
+def test_injected_reprint_citation_still_fails() -> None:
+    report, pack, markdown, features, raw_records, snapshots = _pass_parts()
+    clean = _review(report, pack, markdown, features, raw_records, snapshots)
+    assert clean.qa_pass is True
+    claim = _claim(report)
+    claim["evidence_ids"] = ["ev_reprint", EVIDENCE_ID]
+    claim["text"] = f"同源转载：证据 ev_reprint 与已保留证据 {EVIDENCE_ID} 属于同一来源簇。"
+    markdown = str(claim["text"]) + "\n" + URL + "\n"
+    result = _review(report, pack, markdown, features, raw_records, snapshots)
+    assert result.qa_pass is False
+    assert result.document["signature"] is None
+    assert result.document["release_status"] == "BLOCKED"
+    blocker = _blocker(result.document, "citation_coverage")
+    assert blocker["route"] == "E10"
+    assert blocker["reason"] == "evidence id is not in the evidence pack"
+
+
 def test_clean_r10_fixture_passes() -> None:
     report, pack, plain, features, raw_records, snapshots = _pass_parts()
     markdown = _r10_markdown(_sentence(4, 5))

@@ -1,7 +1,7 @@
 # TechPulse-AI 样报 sample_2
 
 > **标注：AI 生成。**
-> publication_status: internal demo only
+> publication_status: publishable
 > 本文件由已提交的本地 fixture 经 R10 草稿、R20 渲染与 Q10 审查后生成。
 > 事实、数字和链接只复制这些输出。本脚本不联系第三方。对外发送需要 AUTH-06。
 
@@ -22,11 +22,11 @@
 - llm_calls: 0
 - paid_api_calls: 0
 - third_party_writes: 0
-- source_version: 375516ee2865325a2e9931dac87916dff5c1934f551f03d98795a4b0764316eb
-- q10_status: fail
-- qa_pass: false
-- release_status: BLOCKED
-- publication_status: internal demo only
+- source_version: d511153c93776861f5f8308d37586c1707ab46f80ed89e4d065f590566627416
+- q10_status: pass
+- qa_pass: true
+- release_status: PASS
+- publication_status: publishable
 - ai_label: AI 生成
 
 - trend_id: trend:topic:rag:28:2026-10-28
@@ -59,9 +59,7 @@
 
 ## 反证
 
-同源转载：证据 ev_6bb5615616ad288162280ef1aec763f5 与已保留证据 ev_ff96506fde69d09124dadb7cc1b9572e 属于同一来源簇，不作为独立反证，也不作为新的事实。
-
-同源转载：证据 ev_6bb5615616ad288162280ef1aec763f5 与已保留证据 ev_ff96506fde69d09124dadb7cc1b9572e 属于同一来源簇，不作为独立反证，也不作为新的事实。
+无。
 
 ## 未知项
 
@@ -70,6 +68,8 @@
 ## 方法
 
 本草稿由确定性模板 template-v1 生成。提示词/模型版本为 template-v1/none。未调用语言模型，未调用付费 API。事实句只引用证据 ID。推断句带 hypothesis 标记。证据不足或已有冲突的内容不写成事实。数字取自证据包中已存储的主张输入，保持原有计数或分数。链接只复制已通过 schema 的 source_url。
+
+另有 2 条同源转载已合并。
 
 ## 链接目录
 
@@ -89,9 +89,9 @@ ev_ff96506fde69d09124dadb7cc1b9572e | https://example.org/openalex/rag-a | a1181
 - 提示词/模型版本：render-v1/none
 - 状态：success
 - run_id：g10-fixture-sample-2
-- source_version：375516ee2865325a2e9931dac87916dff5c1934f551f03d98795a4b0764316eb
+- source_version：d511153c93776861f5f8308d37586c1707ab46f80ed89e4d065f590566627416
 - contradictions：ee4cd7d02ba194a564e025de72df52ced67e29b3fb1a5ef0a129a3c11c5edb80
-- draft：99be1f810c50d83f4520228c55d717f4725977ac9e1a0e13155b245308eea8fc
+- draft：320b6dfbbf9ec8f862a4e9f3c994532e4db67202d0c10289ffb0c65737b3c11b
 - entities：94aa492012d36a47c71941852b1081f62990daa15a92257522bc80c94b780858
 - evidence_pack：ad2c0a2a8fc02349ef381f7b0f045bab15e2a0d87fd91fcb433e3f80972b1fa1
 - trends：24b87b60ae83c94df3d2ddc6c08e38eef27db742233886de9f175e3dd89dc86c
@@ -187,9 +187,9 @@ ev_ff96506fde69d09124dadb7cc1b9572e | https://example.org/openalex/rag-a | a1181
 - 提示词/模型版本：render-v1/none
 - 状态：success
 - run_id：g10-fixture-sample-2
-- source_version：375516ee2865325a2e9931dac87916dff5c1934f551f03d98795a4b0764316eb
+- source_version：d511153c93776861f5f8308d37586c1707ab46f80ed89e4d065f590566627416
 - contradictions：ee4cd7d02ba194a564e025de72df52ced67e29b3fb1a5ef0a129a3c11c5edb80
-- draft：99be1f810c50d83f4520228c55d717f4725977ac9e1a0e13155b245308eea8fc
+- draft：320b6dfbbf9ec8f862a4e9f3c994532e4db67202d0c10289ffb0c65737b3c11b
 - entities：94aa492012d36a47c71941852b1081f62990daa15a92257522bc80c94b780858
 - evidence_pack：ad2c0a2a8fc02349ef381f7b0f045bab15e2a0d87fd91fcb433e3f80972b1fa1
 - trends：24b87b60ae83c94df3d2ddc6c08e38eef27db742233886de9f175e3dd89dc86c
@@ -203,51 +203,14 @@ ev_ff96506fde69d09124dadb7cc1b9572e | https://example.org/openalex/rag-a | a1181
 ```json
 {
   "attempt": 1,
-  "blockers": [
-    {
-      "claim_id": "rc_0adc223c6335ed0b",
-      "code": "citation_coverage",
-      "reason": "evidence id is not in the evidence pack",
-      "route": "E10"
-    },
-    {
-      "claim_id": "rc_501dfa13063f97fd",
-      "code": "citation_coverage",
-      "reason": "evidence id is not in the evidence pack",
-      "route": "E10"
-    },
-    {
-      "claim_id": "rc_0adc223c6335ed0b",
-      "code": "numeric_date_consistency",
-      "reason": "evidence date is not in the pack",
-      "route": "E10"
-    },
-    {
-      "claim_id": "rc_501dfa13063f97fd",
-      "code": "numeric_date_consistency",
-      "reason": "evidence date is not in the pack",
-      "route": "E10"
-    },
-    {
-      "claim_id": "rc_0adc223c6335ed0b",
-      "code": "url_traceability",
-      "reason": "source url is not traceable to a stored raw record",
-      "route": "E10"
-    },
-    {
-      "claim_id": "rc_501dfa13063f97fd",
-      "code": "url_traceability",
-      "reason": "source url is not traceable to a stored raw record",
-      "route": "E10"
-    }
-  ],
+  "blockers": [],
   "checks": {
     "citation_coverage": {
-      "denominator": 4,
+      "denominator": 2,
       "numerator": 2,
-      "passed": false,
+      "passed": true,
       "threshold": 0.95,
-      "value": 0.5
+      "value": 1.0
     },
     "format": {
       "denominator": 1,
@@ -257,11 +220,11 @@ ev_ff96506fde69d09124dadb7cc1b9572e | https://example.org/openalex/rag-a | a1181
       "value": 1.0
     },
     "numeric_date_consistency": {
-      "denominator": 23,
-      "numerator": 21,
-      "passed": false,
+      "denominator": 19,
+      "numerator": 19,
+      "passed": true,
       "threshold": 0.98,
-      "value": 0.9130434782608695
+      "value": 1.0
     },
     "pii": {
       "denominator": null,
@@ -278,32 +241,26 @@ ev_ff96506fde69d09124dadb7cc1b9572e | https://example.org/openalex/rag-a | a1181
       "value": 0
     },
     "url_traceability": {
-      "denominator": 4,
+      "denominator": 2,
       "numerator": 2,
-      "passed": false,
+      "passed": true,
       "threshold": 1.0,
-      "value": 0.5
+      "value": 1.0
     }
   },
   "evidence_modified": false,
   "human_review_queue": false,
   "llm_calls": 0,
   "paid_api_calls": 0,
-  "qa_pass": false,
-  "release_status": "BLOCKED",
+  "qa_pass": true,
+  "release_status": "PASS",
   "report_id": "report:g10-fixture-sample-2:weekly",
-  "routes": {
-    "E10": [
-      "evidence id is not in the evidence pack",
-      "evidence date is not in the pack",
-      "source url is not traceable to a stored raw record"
-    ]
-  },
+  "routes": {},
   "run_id": "g10-fixture-sample-2",
   "schema_version": "1.0",
-  "signature": null,
-  "signed": false,
-  "status": "fail",
+  "signature": "a0c2bfe5516805208a8221535f436568b81ebead54c87347c90573e0658216f9",
+  "signed": true,
+  "status": "pass",
   "third_party_writes": 0,
   "ticket": "Q10"
 }
