@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TechPulse 仪表盘</title>
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <header class="bar">
+    <p class="product">TechPulse</p>
+    <p class="disclosure"><span id="ai-label">AI 生成</span> <time id="as-of" data-as-of></time></p>
+    <nav class="nav" aria-label="页面">
+      <a href="#/">主题榜</a>
+      <a href="#/reports">报表下载</a>
+      <a href="#/status">系统状态</a>
+    </nav>
+    <label class="credential">只读令牌（只留在这次页面的内存里）
+      <input id="credential" type="password" autocomplete="off" spellcheck="false">
+    </label>
+  </header>
+  <main>
+    <section id="view-leaderboard" data-view="leaderboard">
+      <h1>主题榜</h1>
+      <form id="topic-filters" method="get" action="#/">
+        <label>主题
+          <input id="topic" maxlength="200" autocomplete="off">
+        </label>
+        <button type="submit">查询</button>
+        <button type="button" data-window="">全部窗口</button>
+        <button type="button" data-window="7">7 天</button>
+        <button type="button" data-window="28">28 天</button>
+      </form>
+      <p data-state="loading">正在加载主题榜。</p>
+      <p data-state="empty" hidden>暂无已发布主题。</p>
+      <p data-state="error" hidden>主题榜加载失败。 <span data-detail></span></p>
+      <p data-state="degraded" hidden>服务降级。只显示接口实际返回的内容。 <span data-detail></span></p>
+      <ol data-state="ready" data-results hidden></ol>
+    </section>
+    <section id="view-trend" data-view="trend" hidden>
+      <h1>趋势详情</h1>
+      <p><a href="#/">返回主题榜</a></p>
+      <p data-state="loading" hidden>正在加载趋势。</p>
+      <p data-state="empty" hidden>暂无已发布趋势。</p>
+      <p data-state="error" hidden>趋势加载失败。 <span data-detail></span></p>
+      <p data-state="degraded" hidden>服务降级。只显示接口实际返回的内容。 <span data-detail></span></p>
+      <div data-state="ready" data-results hidden></div>
+    </section>
+    <section id="view-evidence" data-view="evidence" hidden>
+      <h1>来源证据</h1>
+      <p><a href="#/">返回主题榜</a></p>
+      <p data-state="loading" hidden>正在加载来源证据。</p>
+      <p data-state="empty" hidden>暂无来源证据。</p>
+      <p data-state="error" hidden>来源证据加载失败。 <span data-detail></span></p>
+      <p data-state="degraded" hidden>服务降级。只显示接口实际返回的内容。 <span data-detail></span></p>
+      <div data-state="ready" data-results hidden></div>
+    </section>
+    <section id="view-contrary" data-view="contrary" hidden>
+      <h1>反证</h1>
+      <p><a href="#/">返回主题榜</a></p>
+      <p data-state="loading" hidden>正在加载反证。</p>
+      <p data-state="empty" hidden>暂无反证。</p>
+      <p data-state="error" hidden>反证加载失败。 <span data-detail></span></p>
+      <p data-state="degraded" hidden>服务降级。只显示接口实际返回的内容。 <span data-detail></span></p>
+      <div data-state="ready" data-results hidden></div>
+    </section>
+    <section id="view-reports" data-view="reports" hidden>
+      <h1>报表下载</h1>
+      <form id="report-filters" method="get" action="#/reports">
+        <button type="button" data-kind="">全部报表</button>
+        <button type="button" data-kind="daily">日报</button>
+        <button type="button" data-kind="weekly">周报</button>
+        <button type="button" data-kind="topic">专题</button>
+      </form>
+      <p data-state="loading" hidden>正在加载报表。</p>
+      <p data-state="empty" hidden>暂无已发布报表。</p>
+      <p data-state="error" hidden>报表加载失败。 <span data-detail></span></p>
+      <p data-state="degraded" hidden>服务降级。只显示接口实际返回的内容。 <span data-detail></span></p>
+      <div data-state="ready" data-results hidden></div>
+    </section>
+    <section id="view-status" data-view="status" hidden>
+      <h1>系统状态</h1>
+      <p data-state="loading" hidden>正在加载系统状态。</p>
+      <p data-state="empty" hidden>暂无系统状态。</p>
+      <p data-state="error" hidden>系统状态加载失败。 <span data-detail></span></p>
+      <p data-state="degraded" hidden>服务降级。只显示接口实际返回的检查结果。 <span data-detail></span></p>
+      <div data-state="ready" data-results hidden></div>
+    </section>
+  </main>
+  <noscript>需要启用 JavaScript 才能读取接口。页面没有预置数据。</noscript>
+  <script src="js/dashboard.js"></script>
+</body>
+</html>

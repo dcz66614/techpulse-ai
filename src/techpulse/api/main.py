@@ -3,11 +3,16 @@
 OpenAPI is generated from the route models. The default object store is the
 local filesystem backend under the artifacts directory. An S3 backend can
 replace that object by implementing ``ObjectStore``.
+
+``web/src`` is mounted at ``/ui`` when that directory is present. The mount
+serves the static dashboard and does not add write methods. A missing
+directory leaves the API routes in place.
 """
 
 from __future__ import annotations
 
 from collections.abc import Awaitable, Callable
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -15,6 +20,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response
 
@@ -69,6 +75,19 @@ class TechPulseAPI(FastAPI):
         return schema
 
 
+def ui_directory() -> Path:
+    """Dashboard files next to this repo layout: ``<repo>/web/src``."""
+    return Path(__file__).resolve().parents[3] / "web" / "src"
+
+
+def mount_ui(app: FastAPI) -> None:
+    """Mount the read-only dashboard. Skip it when the files are absent."""
+    directory = ui_directory()
+    if not directory.is_dir():
+        return
+    app.mount("/ui", StaticFiles(directory=directory, html=True), name="ui")
+
+
 def create_app(
     settings: ApiSettings | None = None,
     store: ObjectStore | None = None,
@@ -105,6 +124,7 @@ def create_app(
             allow_credentials=False,
             max_age=600,
         )
+    mount_ui(app)
     return app
 
 

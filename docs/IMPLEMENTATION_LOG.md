@@ -1098,18 +1098,27 @@ $ uv run pytest -q
 - `tests/unit/test_o10_release.py` covers the manifest, the gate, the smoke check, the SQLite dry-run, and the placeholder digest. Tests use `tempfile`. The sealed retrieval test set was not used.
 - `docs/deploy.md` lists what remains blocked on AUTH-02.
 - `artifacts/o10-20261028T173306Z/O10/` is on disk and gitignored. This run passed no Q10 manifest, so `qa_pass` is false and the gate refuses. Smoke passed (`/health/live` 200, `/health/ready` 200). The dry-run reached revision `0002`. `image_digest` is `pending-AUTH-02`. The recorded commit is `519eb001e7edf02e6898c0885e61b35fb0c72f85`, the parent of this commit.
+## A20 Dashboard and UI states
+
+- `web/src/index.html`, `web/src/css/app.css`, and `web/src/js/dashboard.js`: static dashboard, no build step. Views are the topic leaderboard (`#/`), trend detail (`#/trends/{id}`), source evidence, counter-evidence, report download, and system status. Each view has loading, empty, error, degraded, and ready. An empty payload clears the results and shows the empty line. `isPublic` drops a row when `qa_pass` or `signed` is present and not true. Source anchors come from `source_url` and must be `https`. The header and each card say `AI 生成` (or `非 AI 生成` when `generated_by_ai` is false) and copy `as_of` from the payload. The read token stays in the password field for the page session and is sent only as a `GET` `Authorization` header. The script does not write web storage. Status uses `/health/live` and `/health/ready` and does not call `/metrics`.
+- `src/techpulse/api/main.py`: mounts `web/src` at `/ui` with `StaticFiles` when that directory exists. `GET` and `HEAD` read files. Other methods on `/ui` are 405. The section 6 routes and OpenAPI path set are unchanged. A missing directory skips the mount and the API still starts.
+- `web/tests/test_ui_static.py` and `web/tests/test_ui_mount.py`: pytest source checks for the states, the `AI 生成` label, `as_of`, the publication filter, source links, secrets, and hard-coded rows, plus `TestClient` checks that `/ui` serves those files, write methods stay 405, and `/v1/trends` still returns JSON. No browser download and no network. `pyproject.toml` collects `web/tests`. The Makefile unit/contract run includes them.
+- `docs/ui_spec.md` records the views, states, publication rule, source links, label, and the `/ui` mount.
+- `artifacts/a20-20261028/A20/manifest.json` and `metrics.json` record this run (`status: pass`, pytest 850 passed, 1 warning, 14.52s). `artifacts/` is gitignored, so those files are on disk and are not in the commit. The sealed retrieval test set was not used.
 
 Real check output:
 
 ```text
 $ uv lock --check
 Resolved 88 packages in 0.68ms
+Resolved 88 packages in 0.80ms
 
 $ uv run ruff check .
 All checks passed!
 
 $ uv run ruff format --check .
 150 files already formatted
+139 files already formatted
 
 $ uv run mypy
 Success: no issues found in 90 source files
@@ -1129,9 +1138,14 @@ $ uv run pytest -q
 ............................................................             [100%]
 ============================== warnings summary ===============================
 .venv\Lib\site-packages\fastapi\testclient.py:1
+........................................................................ [ 93%]
+..........................................................               [100%]
+============================== warnings summary ===============================
+..\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1
   C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
     from starlette.testclient import TestClient as TestClient  # noqa
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 852 passed, 1 warning in 13.97s
+850 passed, 1 warning in 14.52s
 ```

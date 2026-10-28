@@ -1,0 +1,108 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  max-width: 100%;
+  overflow-x: hidden;
+  color: #1c1917;
+  background: #f6f4ef;
+  font: 16px/1.5 "Segoe UI", sans-serif;
+}
+
+header,
+main,
+section,
+nav,
+form,
+p,
+li,
+h1,
+h2,
+a,
+pre,
+input,
+button,
+label {
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.bar,
+main {
+  width: 100%;
+  padding: 0.75rem;
+}
+
+.nav,
+form,
+.credential {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+}
+
+a {
+  color: #9a3412;
+}
+
+.card {
+  margin: 0.75rem 0;
+  padding: 0.75rem;
+  border: 1px solid #e7e5e4;
+  background: #fff;
+}
+
+.results,
+[data-results] {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+input,
+button {
+  font: inherit;
+  max-width: 100%;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+:focus-visible {
+  outline: 2px solid #9a3412;
+  outline-offset: 2px;
+}
+
+@media (max-width: 375px) {
+  .bar,
+  main {
+    padding: 0.75rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .bar,
+  main {
+    width: 100%;
+    max-width: 72rem;
+    margin-right: auto;
+    margin-left: auto;
+  }
+}

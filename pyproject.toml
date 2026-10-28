@@ -33,14 +33,14 @@ packages = ["src/techpulse"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
-src = ["src", "tests"]
+src = ["src", "tests", "web/tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 
 [tool.pytest.ini_options]
 minversion = "8.0"
-testpaths = ["tests"]
+testpaths = ["tests", "web/tests"]
 pythonpath = ["."]
 addopts = "-ra"
 asyncio_default_fixture_loop_scope = "function"
@@ -49,7 +49,7 @@ asyncio_default_fixture_loop_scope = "function"
 python_version = "3.12"
 warn_unused_configs = true
 strict = true
-files = ["src/techpulse", "tests"]
+files = ["src/techpulse", "tests", "web/tests"]
 
 [dependency-groups]
 dev = [
