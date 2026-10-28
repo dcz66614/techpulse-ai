@@ -50,14 +50,15 @@ def test_ui_mount_serves_files_and_api_stays_read_only(tmp_path: Path) -> None:
     with TestClient(app) as client:
         page = client.get("/ui/")
         assert page.status_code == 200
-        assert page.text == (WEB / "index.html").read_text(encoding="utf-8")
+        # StaticFiles returns the file bytes. read_text() rewrites CRLF to LF.
+        assert page.content == (WEB / "index.html").read_bytes()
         assert "AI 生成" in page.text
         script = client.get("/ui/js/dashboard.js")
         style = client.get("/ui/css/app.css")
         assert script.status_code == 200
         assert style.status_code == 200
-        assert script.text == (WEB / "js" / "dashboard.js").read_text(encoding="utf-8")
-        assert style.text == (WEB / "css" / "app.css").read_text(encoding="utf-8")
+        assert script.content == (WEB / "js" / "dashboard.js").read_bytes()
+        assert style.content == (WEB / "css" / "app.css").read_bytes()
         assert client.head("/ui/index.html").status_code == 200
         for method in WRITE:
             assert client.request(method, "/ui/").status_code == 405

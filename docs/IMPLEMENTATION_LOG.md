@@ -1149,3 +1149,42 @@ $ uv run pytest -q
 852 passed, 1 warning in 13.97s
 850 passed, 1 warning in 14.52s
 ```
+
+## A20fix Static mount line endings
+
+- `web/tests/test_ui_mount.py`: the static mount test compares `response.content` with `read_bytes()` for `index.html`, `dashboard.js`, and `app.css`. `StaticFiles` returns the checkout bytes. `Path.read_text()` rewrites CRLF to `\n`, so the text comparison failed on a fresh Windows checkout under `core.autocrlf`. The UI is unchanged.
+- `.gitattributes` sets `web/** text eol=lf`, so text under `web/` checks out with LF. `git add --renormalize -- web` left the blobs unchanged: the index and worktree for `web/src` and `web/tests` were already LF. The sealed retrieval test set was not used.
+
+Real check output:
+
+```text
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+139 files already formatted
+
+$ uv run mypy
+Success: no issues found in 90 source files
+
+$ uv run pytest -q
+........................................................................ [  8%]
+........................................................................ [ 16%]
+........................................................................ [ 25%]
+........................................................................ [ 33%]
+........................................................................ [ 42%]
+........................................................................ [ 50%]
+........................................................................ [ 59%]
+........................................................................ [ 67%]
+........................................................................ [ 76%]
+........................................................................ [ 84%]
+........................................................................ [ 93%]
+..........................................................               [100%]
+============================== warnings summary ===============================
+..\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+850 passed, 1 warning in 17.49s
+```
