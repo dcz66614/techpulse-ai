@@ -524,3 +524,27 @@ $ uv run pytest -q
 ....................................                                     [100%]
 684 passed in 11.68s
 ```
+
+## IAfix I10 review fixes
+- `build_index_from_run` indexes only a successful D21 sanitized file. If that manifest is absent, or its status is not `success`, the I10 manifest is `policy_blocked` with a clear error and no index is written. D20 clean rows are not used. The SQLite runtime and the pgvector DDL are unchanged.
+- `OpenAICompatibleEmbedder.embed` turns an HTTP 200 with invalid JSON into `EmbedderError`. A decoded payload of the wrong shape already raises `EmbedderError`. `build_index` then writes the text-only degraded version and leaves the published pointer unchanged. The new test uses `httpx.MockTransport`. No network call.
+
+Real check output:
+
+```text
+$ uv run ruff format src/techpulse/index/embed.py tests/integration/test_i10_embed.py
+2 files left unchanged
+
+$ uv run ruff check src/techpulse/index/embed.py tests/integration/test_i10_embed.py
+All checks passed!
+
+$ uv run ruff format --check src/techpulse/index/embed.py tests/integration/test_i10_embed.py
+2 files already formatted
+
+$ uv run mypy src/techpulse/index/embed.py tests/integration/test_i10_embed.py
+Success: no issues found in 2 source files
+
+$ uv run pytest -q tests/integration/test_i10_embed.py tests/evaluation/test_retrieval.py
+...................                                                      [100%]
+19 passed in 1.98s
+```

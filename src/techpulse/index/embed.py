@@ -108,6 +108,7 @@ class OpenAICompatibleEmbedder:
         enabled: bool,
         dimension: int,
         timeout_s: float = 30.0,
+        transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.model_id = model
         self.model_version = "openai-compatible"
@@ -117,6 +118,7 @@ class OpenAICompatibleEmbedder:
         self._base_url = base_url.rstrip("/")
         self._enabled = enabled
         self._timeout_s = timeout_s
+        self._transport = transport
 
     def embed(self, texts: Sequence[str]) -> list[list[float]]:
         if not self._enabled:
@@ -130,12 +132,18 @@ class OpenAICompatibleEmbedder:
         headers = {"Authorization": "Bearer " + key, "Content-Type": "application/json"}
         body = {"model": self.model_id, "input": list(texts)}
         try:
-            with httpx.Client(timeout=self._timeout_s, follow_redirects=False) as client:
+            with httpx.Client(
+                timeout=self._timeout_s,
+                follow_redirects=False,
+                transport=self._transport,
+            ) as client:
                 response = client.post(url, headers=headers, json=body)
                 response.raise_for_status()
                 payload: object = response.json()
         except httpx.HTTPError as exc:
             raise EmbedderError("remote embedder request failed") from exc
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise EmbedderError("remote embedder payload") from exc
         return _embeddings_from_payload(payload, len(texts), self.dimension)
 
 
@@ -226,7 +234,9 @@ class _Filter:
 
 
 class _InputError(Exception):
-    pass
+    def __init__(self, message: str, *, status: TaskStatus = TaskStatus.FATAL_ERROR) -> None:
+        super().__init__(message)
+        self.status = status
 
 
 def build_index_from_run(
@@ -237,7 +247,7 @@ def build_index_from_run(
     store: ObjectStore,
     embedder: Embedder | None = None,
 ) -> IndexBuildResult:
-    """Index D21 sanitized rows, or D20 clean rows when D21 is absent."""
+    """Index D21 sanitized chunks. Absent or unsuccessful D21 output blocks the index."""
     checked = _run_id(run_id)
     if _is_isolated(artifacts_dir, checked, database):
         return _emit(
@@ -257,7 +267,7 @@ def build_index_from_run(
         return _emit(
             directory=artifacts_dir / checked / "I10",
             run_id=checked,
-            status=TaskStatus.FATAL_ERROR,
+            status=exc.status,
             index_version=None,
             entry_count=0,
             degraded=False,
@@ -1170,21 +1180,21 @@ def _db_error(
 
 
 def _load_run_records(artifacts_dir: Path, run_id: str) -> tuple[list[dict[str, object]], str]:
-    sanitized = _load_named(
-        artifacts_dir / run_id / "D21" / "manifest.json", "sanitized_name", "sanitized_sha256"
-    )
+    manifest_path = artifacts_dir / run_id / "D21" / "manifest.json"
+    sanitized = _load_named(manifest_path, "sanitized_name", "sanitized_sha256")
     if isinstance(sanitized, list):
         return sanitized, "D21"
-    if sanitized is not None:
+    if isinstance(sanitized, str):
         raise _InputError(sanitized)
-    cleaned = _load_named(
-        artifacts_dir / run_id / "D20" / "manifest.json", "clean_name", "clean_sha256"
+    if manifest_path.is_file():
+        raise _InputError(
+            "policy_blocked: D21 sanitized output is not successful",
+            status=TaskStatus.POLICY_BLOCKED,
+        )
+    raise _InputError(
+        "policy_blocked: D21 sanitized output is absent",
+        status=TaskStatus.POLICY_BLOCKED,
     )
-    if isinstance(cleaned, list):
-        return cleaned, "D20"
-    if cleaned is not None:
-        raise _InputError(cleaned)
-    raise _InputError("fatal_error: no sanitized or clean input")
 
 
 def _load_named(

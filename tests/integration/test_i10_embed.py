@@ -10,6 +10,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import httpx
 import pytest
 from alembic import command
 from alembic.config import Config
@@ -25,6 +26,7 @@ from techpulse.index.embed import (
     EmbedderDisabled,
     EmbedderError,
     HashedNgramEmbedder,
+    IndexBuildResult,
     OpenAICompatibleEmbedder,
     build_index,
     build_index_from_run,
@@ -370,25 +372,111 @@ def test_d21_sanitized_rows_are_preferred(monkeypatch: MonkeyPatch) -> None:
         assert "hashed-char-ngram-tf" in payload
 
 
-def test_d20_is_used_when_sanitized_output_is_absent() -> None:
+def test_index_is_not_built_without_successful_d21() -> None:
+    leak = "Clean excerpt about agents leak@example.com"
+    unsanitized = "Unsuccessful sanitized row must stay out"
     with TemporaryDirectory() as tmp:
         root = Path(tmp)
         artifacts = root / "artifacts"
         database = root / "i10.sqlite"
-        _write_clean(
-            artifacts / "i10-d20" / "D20",
-            [_record("doc-9", "Clean excerpt about agents", "en")],
-        )
-        indexed = build_index_from_run(
-            run_id="i10-d20",
+        store = LocalObjectStore(artifacts)
+        _write_clean(artifacts / "i10-absent" / "D20", [_record("doc-9", leak, "en")])
+        absent = build_index_from_run(
+            run_id="i10-absent",
             artifacts_dir=artifacts,
             database=database,
-            store=LocalObjectStore(artifacts),
+            store=store,
             embedder=HashedNgramEmbedder(),
         )
-        assert indexed.origin == "D20"
-        assert indexed.entry_count == 1
-        assert "Clean excerpt about agents" in "\n".join(_column(database, "body"))
+        _assert_blocked(absent, artifacts / "i10-absent" / "I10", database, leak)
+        assert absent.errors == ("policy_blocked: D21 sanitized output is absent",)
+
+        directory = artifacts / "i10-failed" / "D21"
+        digest = _write_jsonl(directory / "sanitized.jsonl", [_record("doc-1", unsanitized, "en")])
+        _write_json(
+            directory / "manifest.json",
+            {
+                "sanitized_name": "sanitized.jsonl",
+                "sanitized_sha256": digest,
+                "status": "fatal_error",
+            },
+        )
+        _write_clean(artifacts / "i10-failed" / "D20", [_record("doc-1", leak, "en")])
+        failed = build_index_from_run(
+            run_id="i10-failed",
+            artifacts_dir=artifacts,
+            database=database,
+            store=store,
+            embedder=HashedNgramEmbedder(),
+        )
+        _assert_blocked(failed, artifacts / "i10-failed" / "I10", database, leak)
+        assert failed.errors == ("policy_blocked: D21 sanitized output is not successful",)
+        stored = _tree_text(artifacts / "i10-failed" / "I10")
+        assert unsanitized not in stored
+        assert leak not in stored
+
+
+def test_remote_success_with_invalid_payload_is_degraded(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setenv("TECHPULSE_TEST_EMBED_KEY", "local-test-key")
+    calls = 0
+
+    def transport_for(body: bytes) -> httpx.MockTransport:
+        def handler(request: httpx.Request) -> httpx.Response:
+            nonlocal calls
+            calls += 1
+            assert request.method == "POST"
+            assert request.url.path.endswith("/embeddings")
+            return httpx.Response(200, content=body, request=request)
+
+        return httpx.MockTransport(handler)
+
+    with TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        artifacts = root / "artifacts"
+        database = root / "i10.sqlite"
+        store = LocalObjectStore(artifacts)
+        first = build_index(
+            [_record("good", "Published vector row", "en")],
+            run_id="i10-remote-ok",
+            artifacts_dir=artifacts,
+            database=database,
+            store=store,
+            embedder=HashedNgramEmbedder(),
+        )
+        published = _pointer(database, "published")
+        blob = _embedding(database, "good")
+        payloads = (b"not-json", b'{"data":"wrong-shape"}')
+        for index, body in enumerate(payloads):
+            embedder = OpenAICompatibleEmbedder(
+                base_url="http://127.0.0.1:9/v1",
+                api_key_env="TECHPULSE_TEST_EMBED_KEY",
+                model="text-embedding-3-small",
+                enabled=True,
+                dimension=VECTOR_DIMENSION,
+                transport=transport_for(body),
+            )
+            with pytest.raises(EmbedderError, match="remote embedder payload"):
+                embedder.embed(["ping"])
+            failed = build_index(
+                [_record("next", "Text fallback row", "en")],
+                run_id=f"i10-remote-bad-{index}",
+                artifacts_dir=artifacts,
+                database=database,
+                store=store,
+                embedder=embedder,
+            )
+            assert failed.status == TaskStatus.SUCCESS
+            assert failed.degraded is True
+            assert failed.entry_count == 1
+            assert failed.errors == ()
+            assert _pointer(database, "published") == published
+            assert _embedding(database, "good") == blob
+            assert _pointer(database, "text") == failed.index_version
+            corpus = load_active_corpus(database)
+            assert corpus.vectors_available is False
+            assert corpus.text_version == failed.index_version
+        assert calls == 4
+        assert first.index_version == published
 
 
 def test_isolated_run_is_not_indexed() -> None:
@@ -451,6 +539,36 @@ def test_sqlite_migration_creates_search_tables_and_postgres_ddl_names_pgvector(
         assert "chunk_vectors" not in gone
         command.upgrade(cfg, "head")
         assert "index_versions" in _table_names(database)
+
+
+def _assert_blocked(
+    result: IndexBuildResult,
+    directory: Path,
+    database: Path,
+    forbidden: str,
+) -> None:
+    assert result.status == TaskStatus.POLICY_BLOCKED
+    assert result.entry_count == 0
+    assert result.index_version is None
+    assert result.degraded is False
+    assert result.origin == "missing"
+    manifest = _read_json(directory / "manifest.json")
+    assert manifest["status"] == TaskStatus.POLICY_BLOCKED.value
+    assert manifest["entry_count"] == 0
+    assert manifest["index_version"] is None
+    assert manifest["errors"] == list(result.errors)
+    assert forbidden not in _tree_text(directory)
+    assert _pointer(database, "published") is None
+    assert _pointer(database, "text") is None
+    assert not database.is_file()
+
+
+def _tree_text(directory: Path) -> str:
+    parts: list[str] = []
+    for path in sorted(directory.rglob("*")):
+        if path.is_file():
+            parts.append(path.read_text(encoding="utf-8"))
+    return "\n".join(parts)
 
 
 def _record(source_record_id: str, title: str, language: str) -> dict[str, object]:
