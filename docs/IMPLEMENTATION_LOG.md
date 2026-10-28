@@ -385,3 +385,25 @@ Success: no issues found in 69 source files
 $ uv run pytest -q
 676 passed in 10.34s
 ```
+
+## D40 Entity resolution and cross-source relations
+- `src/techpulse/normalize/entities.py` resolves canonical D30 rows into paper, repository, company, and technology-topic entities, then adds relations with `source_record_id`, all supporting `source_record_ids`, the source field, evidence text, and a high/medium/low confidence. Explicit DOI, arXiv, and GitHub identifiers and a small topic dictionary drive the links; repository rename keeps the stable numeric repo id as canonical while old and new names become aliases. Companies with the same name but different domains stay separate, and name-only companies are per-provenance `unresolved` instead of being force-merged. An `owned_by` conflict keeps both relations, marks them `unresolved`, and lowers them to low confidence. `run_entities` writes `artifacts/{run_id}/D40/{entities.jsonl,relations.jsonl,manifest.json,metrics.json}` through the `ObjectStore` interface; pyarrow is absent, so the output is JSONL with a manifest note. No clean.py/PII changes; no network.
+- `tests/unit/test_entities.py` covers paper-repo-company provenance, repository rename aliases, same-name companies with different domains, ownership conflicts, name-only unresolved entities and unknown topics, and the artifacts/metrics. Every relation in the fixtures has a non-empty `source_record_id`.
+- Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.70ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+101 files already formatted
+
+$ uv run mypy
+Success: no issues found in 69 source files
+
+$ uv run pytest -q
+676 passed in 9.69s
+```
