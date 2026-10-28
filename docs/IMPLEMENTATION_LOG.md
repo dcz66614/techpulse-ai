@@ -753,3 +753,37 @@ $ uv run pytest -q
 765 passed in 12.50s
 ```
 ```
+
+## E20 Contradiction search and conflict review
+- `src/techpulse/evidence/contradictions.py`: for each E10 claim, template negation and alternative-explanation queries run through I20. A hit counts only when `evidence_supports_claim` accepts it and the record already has an https URL, hash, date, license, and citation span. One D30 cluster contributes one independent contradiction; extra members are same-origin reprints. An opposing conclusion, a publication-date conflict, or a statistical-definition difference lowers confidence by one step. Numeric and date disagreements go to the QA queue. If retrieval cannot run, the candidate is `contrary_search_incomplete` and confidence is at most medium. A finished search with no contrary hit is `counterevidence_not_found`. `LocalObjectStore` writes `contradictions.json`, `manifest.json`, and `metrics.json`. SQLite stores contradict rows and the QA queue.
+- `tests/unit/test_e20_contradictions.py` and `tests/integration/test_e20_review.py`. Tests use `tempfile`. The sealed retrieval test set was not used.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.61ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+131 files already formatted
+
+$ uv run mypy
+Success: no issues found in 83 source files
+
+$ uv run pytest -q
+........................................................................ [  9%]
+........................................................................ [ 18%]
+........................................................................ [ 27%]
+........................................................................ [ 36%]
+........................................................................ [ 45%]
+........................................................................ [ 55%]
+........................................................................ [ 64%]
+........................................................................ [ 73%]
+........................................................................ [ 82%]
+........................................................................ [ 91%]
+...............................................................          [100%]
+783 passed in 12.99s
+```
