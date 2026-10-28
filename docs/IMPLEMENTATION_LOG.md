@@ -273,3 +273,10 @@ $ uv run pytest -q
 128 passed in 4.39s
 ```
 
+## C20 GitHub read-only collector
+- Added fixture-backed GitHub repository/release metadata collection with stable numeric IDs, idempotent cursors, S20 GET-only egress, registry pacing and headers, optional environment-only token authentication, secondary-limit circuit breaking, and Retry-After handling. Repository and release instructions are never retrieved for execution.
+- Verified `uv run pytest tests/integration/test_github.py -q` → `6 passed in 1.15s`; full final gates are recorded under C21. Also corrected pre-existing unparameterized `dict` annotations in `test_source_registry.py` required by strict mypy.
+
+## C21 Hacker News and compliant RSS collectors
+- Added HN public item metadata collection and reviewed per-feed RSS/Atom metadata collection through S20. Records validate against the P10 schema; usernames, contacts, and full text are discarded. RSS remains disabled in the shipped phase-2 registry and unknown feeds are policy-blocked before HTTP.
+- Real final output: `uv lock --check` → `Resolved 88 packages in 0.58ms`; `uv run ruff check .` → `All checks passed!`; `uv run ruff format --check .` → `76 files already formatted`; `uv run mypy` → `Success: no issues found in 55 source files`; `uv run pytest -q` → `97 passed in 3.27s`.

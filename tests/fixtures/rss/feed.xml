@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0">
+  <channel>
+    <title>Research Engineering News</title>
+    <link>https://feeds.example.test/</link>
+    <description>Metadata-only fixture</description>
+    <ttl>60</ttl>
+    <item>
+      <title>Evaluating retrieval pipelines</title>
+      <link>https://example.org/retrieval-evaluation</link>
+      <guid>fixture-entry-1</guid>
+      <pubDate>Sat, 24 Oct 2026 09:30:00 GMT</pubDate>
+      <author>private@example.test</author>
+      <description>Full copyrighted article that must not be retained.</description>
+    </item>
+  </channel>
+</rss>
