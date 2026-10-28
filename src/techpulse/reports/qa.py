@@ -8,8 +8,12 @@ A draft is signed only when every gate passes: claim citation coverage at
 least 95%, URL traceability exactly 100% of the displayed public claims,
 numeric and date consistency at least 98%, unknown or blocked license
 releases at 0, no PII in the draft, and the draft text matching the claim
-list. A failure is routed back to R10, E10, or D21. The third failure of a
-run is marked for human review.
+list. Factual sentences, numbers, and dates in the trends, changes, and
+counter-evidence sections must appear in a claim that cites an evidence id.
+The header, method, unknowns, link directory, and lines labelled hypothesis
+are not factual content. An uncovered fact or number blocks release. A
+failure is routed back to R10, E10, or D21. The third failure of a run is
+marked for human review.
 """
 
 from __future__ import annotations
@@ -50,6 +54,22 @@ _URL = re.compile(r"^https://\S+$")
 _URL_IN_TEXT = re.compile(r"https?://[^\s|）】>\"')]+")
 _DOI_IN_TEXT = re.compile(r"\b10\.\d{4,9}/[^\s|）】>\"')]+")
 _TIME_IN_TEXT = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})")
+_HEADING = re.compile(r"^#{1,6}\s+(.+)$")
+_HYPOTHESIS_LABEL = re.compile(r"(?i)hypothesis\s*[:：]")
+_SENTENCE_BOUNDARY = re.compile(r"[。！？!?]|((?<!\d)\.(?=\s|$))")
+_NUMBER_IN_TEXT = re.compile(r"(?<![\d.])\d+(?:\.\d+)?(?![\d.])")
+_FACTUAL_SECTIONS = frozenset({"trends", "changes", "counter-evidence"})
+_SECTION_ALIASES = {
+    "趋势": "trends",
+    "变化": "changes",
+    "反证": "counter-evidence",
+    "trends": "trends",
+    "changes": "changes",
+    "counter-evidence": "counter-evidence",
+    "counter_evidence": "counter-evidence",
+    "counter evidence": "counter-evidence",
+}
+_EMPTY_FACT = frozenset({"无", "无。"})
 _DDL = """
 CREATE TABLE IF NOT EXISTS qa_runs (
     run_id TEXT PRIMARY KEY,
@@ -176,13 +196,24 @@ def review_report(
     format_ok, format_reasons = _format_problems(report, markdown, claims)
     for claim_id, reason in format_reasons:
         add("format", "R10", claim_id, reason)
+    unclaimed_sentences, unclaimed_tokens = _unclaimed_draft(markdown, claims)
+    if unclaimed_sentences or unclaimed_tokens:
+        add("unclaimed_fact", "R10", "", "unclaimed_fact")
 
     blockers.sort(key=lambda item: (str(item["code"]), str(item["claim_id"]), str(item["reason"])))
     checks = {
-        "citation_coverage": _rate(citation_hits, len(claims), CITATION_MIN_MILLI, minimum=0.95),
+        "citation_coverage": _rate(
+            citation_hits,
+            len(claims) + len(unclaimed_sentences),
+            CITATION_MIN_MILLI,
+            minimum=0.95,
+        ),
         "url_traceability": _rate(url_hits, len(claims) + len(orphans), URL_MIN_MILLI, minimum=1.0),
         "numeric_date_consistency": _rate(
-            numeric_hits, numeric_total, NUMERIC_MIN_MILLI, minimum=0.98
+            numeric_hits,
+            numeric_total + len(unclaimed_tokens),
+            NUMERIC_MIN_MILLI,
+            minimum=0.98,
         ),
         "unknown_license_external_release": _count(len(unknown), maximum=0),
         "pii": _count(pii_findings, maximum=0),
@@ -676,6 +707,112 @@ def _format_problems(
         elif text not in markdown:
             reasons.append((claim_id, "claim text is not in the draft"))
     return not reasons, reasons
+
+
+def _unclaimed_draft(
+    markdown: str,
+    claims: Sequence[Mapping[str, object]],
+) -> tuple[list[str], list[str]]:
+    """Factual sentences and number or date tokens no cited claim covers.
+
+    Trends, changes, and counter-evidence are factual. The header, method,
+    unknowns, and link directory are not. A line labelled hypothesis is an
+    inference, not a fact. Coverage requires the sentence or token to appear
+    in a claim that cites an evidence id.
+    """
+    covered = _cited_claim_texts(claims)
+    sentences: list[str] = []
+    tokens: list[str] = []
+    for line in _factual_lines(markdown):
+        for sentence in _sentences(line):
+            if not _contained(sentence, covered):
+                sentences.append(sentence)
+        for token in _draft_tokens(line):
+            if not _token_covered(token, covered):
+                tokens.append(token)
+    return sentences, tokens
+
+
+def _cited_claim_texts(claims: Sequence[Mapping[str, object]]) -> list[str]:
+    texts: list[str] = []
+    for claim in claims:
+        if not _strings(claim.get("evidence_ids")):
+            continue
+        text = _text(claim.get("text"))
+        if text is not None:
+            texts.append(text)
+    return texts
+
+
+def _factual_lines(markdown: str) -> list[str]:
+    section = ""
+    lines: list[str] = []
+    for raw in markdown.splitlines():
+        stripped = raw.strip()
+        heading = _HEADING.fullmatch(stripped)
+        if heading is not None:
+            section = _section_key(heading.group(1))
+            continue
+        if section not in _FACTUAL_SECTIONS:
+            continue
+        if stripped == "" or stripped in _EMPTY_FACT:
+            continue
+        if _hypothesis_line(stripped):
+            continue
+        lines.append(stripped)
+    return lines
+
+
+def _section_key(title: str) -> str:
+    return _SECTION_ALIASES.get(title.strip().casefold(), "")
+
+
+def _hypothesis_line(line: str) -> bool:
+    stripped = line.lstrip("-*> \t").lstrip("`*_").strip()
+    return _HYPOTHESIS_LABEL.match(stripped) is not None
+
+
+def _sentences(line: str) -> list[str]:
+    found: list[str] = []
+    start = 0
+    for match in _SENTENCE_BOUNDARY.finditer(line):
+        piece = line[start : match.end()].strip()
+        start = match.end()
+        if _has_words(piece):
+            found.append(piece)
+    tail = line[start:].strip()
+    if _has_words(tail):
+        found.append(tail)
+    return found
+
+
+def _has_words(piece: str) -> bool:
+    return any(char.isalnum() for char in piece)
+
+
+def _contained(sentence: str, texts: Sequence[str]) -> bool:
+    folded = _compact(sentence)
+    if folded == "":
+        return True
+    return any(folded in _compact(text) for text in texts)
+
+
+def _compact(text: str) -> str:
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def _draft_tokens(line: str) -> list[str]:
+    tokens = list(_TIME_IN_TEXT.findall(line))
+    stripped = _URL_IN_TEXT.sub(" ", _TIME_IN_TEXT.sub(" ", line))
+    tokens.extend(_NUMBER_IN_TEXT.findall(stripped))
+    return tokens
+
+
+def _token_covered(token: str, texts: Sequence[str]) -> bool:
+    if _TIME_IN_TEXT.fullmatch(token):
+        return any(token in text for text in texts)
+    pattern = rf"(?<![\d.]){re.escape(token)}(?![\d.])"
+    return any(re.search(pattern, text) is not None for text in texts)
 
 
 def _orphan_urls(

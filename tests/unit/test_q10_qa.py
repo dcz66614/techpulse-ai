@@ -249,6 +249,74 @@ def test_fail_format_when_claim_text_is_absent_from_the_draft() -> None:
     assert result.qa_pass is False
 
 
+def test_clean_r10_fixture_passes() -> None:
+    report, pack, plain, features, raw_records, snapshots = _pass_parts()
+    markdown = _r10_markdown(_sentence(4, 5))
+    result = _review(report, pack, markdown, features, raw_records, snapshots)
+    plain_result = _review(report, pack, plain, features, raw_records, snapshots)
+    assert result.qa_pass is True
+    assert result.document["signed"] is True
+    assert result.document["blockers"] == []
+    assert result.document["signature"] == plain_result.document["signature"]
+    checks = _checks(result.document)
+    assert checks["citation_coverage"]["value"] == 1.0
+    assert checks["citation_coverage"]["denominator"] == 1
+    assert checks["numeric_date_consistency"]["value"] == 1.0
+    assert checks["format"]["passed"] is True
+
+
+def test_unclaimed_sentence_fails_citation_coverage() -> None:
+    report, pack, _markdown, features, raw_records, snapshots = _pass_parts()
+    clean = _r10_markdown(_sentence(4, 5))
+    clean_result = _review(report, pack, clean, features, raw_records, snapshots)
+    markdown = _r10_markdown(_sentence(4, 5), extra=("该主题已经进入生产环境。",))
+    result = _review(report, pack, markdown, features, raw_records, snapshots)
+    assert result.qa_pass is False
+    assert result.document["signature"] is None
+    assert result.document["release_status"] == "BLOCKED"
+    blocker = _blocker(result.document, "unclaimed_fact")
+    assert blocker["route"] == "R10"
+    assert blocker["reason"] == "unclaimed_fact"
+    citation = _checks(result.document)["citation_coverage"]
+    clean_citation = _checks(clean_result.document)["citation_coverage"]
+    assert citation["numerator"] == clean_citation["numerator"]
+    assert citation["denominator"] == _as_int(clean_citation["denominator"]) + 1
+    assert citation["passed"] is False
+    numeric = _checks(result.document)["numeric_date_consistency"]
+    clean_numeric = _checks(clean_result.document)["numeric_date_consistency"]
+    assert numeric["numerator"] == clean_numeric["numerator"]
+    assert numeric["denominator"] == clean_numeric["denominator"]
+    assert numeric["passed"] is True
+    assert _checks(result.document)["format"]["passed"] is True
+
+
+def test_unclaimed_number_and_date_fail_numeric_consistency() -> None:
+    report, pack, _markdown, features, raw_records, snapshots = _pass_parts()
+    clean = _r10_markdown(_sentence(4, 5))
+    clean_result = _review(report, pack, clean, features, raw_records, snapshots)
+    markdown = _r10_markdown(
+        _sentence(4, 5),
+        extra=("旁注 88，记于 1999-01-01T00:00:00Z。",),
+    )
+    result = _review(report, pack, markdown, features, raw_records, snapshots)
+    assert result.qa_pass is False
+    assert result.document["signature"] is None
+    blocker = _blocker(result.document, "unclaimed_fact")
+    assert blocker["route"] == "R10"
+    assert blocker["reason"] == "unclaimed_fact"
+    citation = _checks(result.document)["citation_coverage"]
+    clean_citation = _checks(clean_result.document)["citation_coverage"]
+    assert citation["numerator"] == clean_citation["numerator"]
+    assert citation["denominator"] == _as_int(clean_citation["denominator"]) + 1
+    assert citation["passed"] is False
+    numeric = _checks(result.document)["numeric_date_consistency"]
+    clean_numeric = _checks(clean_result.document)["numeric_date_consistency"]
+    assert numeric["numerator"] == clean_numeric["numerator"]
+    assert numeric["denominator"] == _as_int(clean_numeric["denominator"]) + 2
+    assert numeric["passed"] is False
+    assert _checks(result.document)["format"]["passed"] is True
+
+
 def test_no_material_update_with_no_public_claims_passes() -> None:
     _report, pack, _markdown, features, raw_records, snapshots = _pass_parts()
     report: dict[str, object] = {
@@ -475,6 +543,53 @@ def _sentence(previous: int, current: int) -> str:
     )
 
 
+def _r10_markdown(claim_text: str, *, extra: tuple[str, ...] = ()) -> str:
+    inserted: list[str] = []
+    for line in extra:
+        inserted.extend([line, ""])
+    body = [
+        "# TechPulse 周报草稿",
+        "",
+        "- 模板版本：template-v1",
+        "- 提示词/模型版本：template-v1/none",
+        "- 状态：success",
+        "- report_id：report-q10-unit-weekly",
+        "- run_id：q10-unit",
+        "",
+        "## 趋势",
+        "",
+        "无。",
+        "",
+        "## 变化",
+        "",
+        claim_text,
+        "",
+        (
+            "hypothesis：将主题 topic:rag 的独立记录数由 4 变为 999 "
+            "解释为增加。该句是推断，不是事实。证据 ev_support。"
+        ),
+        "",
+        *inserted,
+        "## 反证",
+        "",
+        "无。",
+        "",
+        "## 未知项",
+        "",
+        "未知：数字 12345 与 2026-10-28T00:00:00Z 只出现在未知项。",
+        "",
+        "## 方法",
+        "",
+        "本草稿由确定性模板 template-v1 生成。方法区的数字 9999 不参与事实校验。",
+        "",
+        "## 链接目录",
+        "",
+        f"{EVIDENCE_ID} | {URL} | {DIGEST} | {PUBLISHED} | metadata_only | A",
+        "",
+    ]
+    return "\n".join(body)
+
+
 def _evidence() -> dict[str, object]:
     excerpt = "RAG records changed from 4 to 5."
     return {
@@ -528,6 +643,11 @@ def _evidence_row(pack: dict[str, object]) -> dict[str, object]:
     evidence = pack["evidence"]
     assert isinstance(evidence, list)
     return cast(dict[str, object], evidence[0])
+
+
+def _as_int(value: object) -> int:
+    assert isinstance(value, int)
+    return value
 
 
 def _checks(document: object) -> dict[str, dict[str, object]]:

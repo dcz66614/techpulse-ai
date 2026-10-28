@@ -926,3 +926,38 @@ $ uv run pytest -q
 ...                                                                      [100%]
 795 passed in 12.80s
 ```
+
+## Q10fix Block unclaimed draft facts
+- `src/techpulse/reports/qa.py`: factual sentences in the R10 sections 趋势, 变化, and 反证 must appear in a `report_claims.json` claim that cites an evidence id. The header, 方法, 未知项, 链接目录, and lines labelled `hypothesis` are not scanned. An uncovered sentence is a citation miss. An uncovered number or date is a numeric/date miss. Either one adds a blocking `unclaimed_fact` routed to R10. The forward format check still requires each claim to appear in the draft.
+- `tests/unit/test_q10_qa.py`: the clean sectioned R10 fixture passes, including a hypothesis line, the method, the unknowns, and the link directory. An injected sentence fails citation coverage. An injected number and date fail numeric/date consistency. The sealed retrieval test set was not used.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 8ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+136 files already formatted
+
+$ uv run mypy
+Success: no issues found in 85 source files
+
+$ uv run pytest -q
+........................................................................ [  8%]
+........................................................................ [ 17%]
+........................................................................ [ 26%]
+........................................................................ [ 35%]
+........................................................................ [ 44%]
+........................................................................ [ 53%]
+........................................................................ [ 61%]
+........................................................................ [ 70%]
+........................................................................ [ 79%]
+........................................................................ [ 88%]
+........................................................................ [ 97%]
+.....................                                                    [100%]
+813 passed in 22.54s
+```
