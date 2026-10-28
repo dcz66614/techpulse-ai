@@ -284,3 +284,29 @@ $ uv run pytest -q
 ## CBfix Collector review fixes
 - GitHub authentication forwards the environment token without logging it; RSS cursors now use monotonic `(published_at, id)` keys and replay tests; HN and RSS accept numeric and HTTP-date `Retry-After` values.
 - Real final output: `uv lock --check` → `Resolved 88 packages in 0.79ms`; `uv run ruff check .` → `All checks passed!`; `uv run ruff format --check .` → `78 files already formatted`; `uv run mypy` → `Success: no issues found in 55 source files`; `uv run pytest -q` → `102 passed in 3.72s`.
+
+## D10 Raw archive and lineage
+- `src/techpulse/workflows/activities.py`: stages collector NDJSON through an `ObjectStore`. `LocalObjectStore` writes under the artifacts root (no S3 here). Each line is checked against `contracts/raw_record.schema.json` and the file SHA-256. A declared hash mismatch is `fatal_error` and is not staged. An object-store `OSError` is `retryable_error`. Schema, JSON, and invalid UTF-8 lines go to `dlq.ndjson` and `raw_dlq`. `idempotency_key` is sha256 of `run_id|source_id|source_record_id|content_sha256`, so a replay of the same run inserts no new `raw_records` rows. SQLite indexes `raw_uri`, `source_id`, `collected_at`, `published_at`, and `policy_snapshot_id`. Each row's `raw_uri` points at the staged object line. The archive watermark moves only when the DLQ is empty and the commit succeeds. Response headers named like authorization, cookie, token, or secret are dropped; other values go through `redact_secrets`.
+- Tests use `tests/fixtures/openalex/one_work.json`, `tests/fixtures/crossref/one_work.json`, `tests/fixtures/github/{repository,releases}.json`, and `tests/fixtures/hn/item.json` through the collectors. No live HTTP. SQLite and the object root are `tempfile` directories.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.60ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+98 files already formatted
+
+$ uv run mypy
+Success: no issues found in 64 source files
+
+$ uv run pytest -q
+........................................................................ [ 48%]
+........................................................................ [ 97%]
+....                                                                     [100%]
+148 passed in 6.33s
+```
