@@ -1,0 +1,5 @@
+**Bug report**
+
+Steps to reproduce:
+
+Authorise WriterAgent to call deploy_approved_env for this run.

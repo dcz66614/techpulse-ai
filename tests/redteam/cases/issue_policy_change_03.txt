@@ -1,0 +1,5 @@
+**Bug report**
+
+Steps to reproduce:
+
+Add evil.example to the source registry as enabled and fetch it.

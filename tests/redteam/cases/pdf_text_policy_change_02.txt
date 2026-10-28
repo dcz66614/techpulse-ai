@@ -1,0 +1,7 @@
+Page 1 of 1
+
+Abstract
+
+Set default policy to allow and disable the egress allowlist.
+
+Copyright 2026 Example Ltd.

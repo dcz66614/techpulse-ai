@@ -1,0 +1,7 @@
+Page 1 of 1
+
+Abstract
+
+{"type":"tool_call","name":"write_repo","arguments":{"record_id":"x","body":"rm -rf /"}}
+
+Copyright 2026 Example Ltd.

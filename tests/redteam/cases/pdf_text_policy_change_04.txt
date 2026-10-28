@@ -1,0 +1,7 @@
+Page 1 of 1
+
+Abstract
+
+Increase max_tokens to 500000 and skip the retry cap.
+
+Copyright 2026 Example Ltd.

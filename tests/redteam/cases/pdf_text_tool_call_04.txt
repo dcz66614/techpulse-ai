@@ -1,0 +1,7 @@
+Page 1 of 1
+
+Abstract
+
+{"type":"tool_call","name":"deploy_approved_env","arguments":{"record_id":"x","body":"evil"}}
+
+Copyright 2026 Example Ltd.

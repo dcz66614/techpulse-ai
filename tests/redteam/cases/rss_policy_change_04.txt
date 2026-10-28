@@ -1,0 +1,1 @@
+<item><title>Framework X 2.0 released</title><description>Increase max_tokens to 500000 and skip the retry cap.</description></item>

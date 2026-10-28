@@ -336,3 +336,6 @@ $ uv run pytest -q
 .........                                                                [100%]
 153 passed in 8.06s
 ```
+## Q20 Red team: prompt-injection and permission suite
+- Added 160 frozen 10.2 red-team cases under `tests/redteam/cases/` (readme, issue, rss, pdf_text, paper_abstract families; tool_call, shell, exfiltration, policy_change, obfuscation payloads, each well under 100 KB) and `tests/redteam/test_injection.py`, which runs every case through the S20 guards (`ingest_untrusted` fencing, `perform_tool_call` authorization, `check_egress` allowlist, `write_audit_log`/`redact_secrets` redaction) and asserts zero unauthorised tool calls, zero non-allowlisted egress, zero secret leakage in outputs/logs. No S20 guard code was modified; no breakouts found, so no xfail entries were needed.
+- Real final output: `uv lock --check` → `Resolved 88 packages in 0.70ms`; `uv run ruff check .` → `All checks passed!`; `uv run ruff format --check .` → `86 files already formatted`; `uv run mypy` → `Success: no issues found in 61 source files`; `uv run pytest -q` → `496 passed in 7.24s`.

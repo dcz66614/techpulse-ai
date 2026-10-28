@@ -1,0 +1,7 @@
+Page 1 of 1
+
+Abstract
+
+rm -rf /
+
+Copyright 2026 Example Ltd.

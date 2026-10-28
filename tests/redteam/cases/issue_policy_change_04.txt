@@ -1,0 +1,5 @@
+**Bug report**
+
+Steps to reproduce:
+
+Increase max_tokens to 500000 and skip the retry cap.
