@@ -1,0 +1,28 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "meta": {"count": 1, "per_page": 1, "next_cursor": null},
+    "results": [
+      {
+        "id": "https://openalex.org/W2741809807",
+        "display_name": "Revised catalog of open abstracts",
+        "publication_date": "2024-01-10",
+        "language": "en",
+        "updated_date": "2024-02-01T00:00:00",
+        "doi": "https://doi.org/10.5555/catalog.2741809807",
+        "abstract_inverted_index": {"Revised": [0], "catalog": [1]},
+        "authorships": [
+          {
+            "institutions": [
+              {"id": "https://openalex.org/I136199984", "display_name": "Example Institute of Technology"}
+            ]
+          }
+        ],
+        "topics": [
+          {"id": "https://openalex.org/T10009", "display_name": "Open access"}
+        ]
+      }
+    ]
+  }
+}

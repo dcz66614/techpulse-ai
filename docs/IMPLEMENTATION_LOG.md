@@ -170,3 +170,30 @@ $ uv run pytest -q
 - config/source_registry.yaml (hackernews): removed invented 60 req/min and 2-connection concurrency limits from verified rate_limits; recorded the official quote `official_rate_limit: "There is currently no rate limit."` and moved client-side pacing to a clearly labelled `self_imposed_throttle` block with note "project choice, not an official limit"; removed the stale top-level `requests_per_minute: 60`.
 - Also corrected numbers not backed by quoted official sentences elsewhere: crossref (official pool table Public 5/1, Polite 10/3, Plus 150/None), openalex/sec_edgar/rss concurrency_limit -> "not stated", github concurrency 100 with supporting quote, and search limits marked "not stated"; matching edits in docs/decisions/source_policy_{crossref,hackernews,openalex,github,sec_edgar}.md; supporting quotes added for corrected values.
 - Tests: 25 passed in tests/unit/test_source_registry.py (no old numeric assertions needed changing).
+
+## C10 OpenAlex collector
+- `src/techpulse/collectors/base.py`: SQLite watermark and provenance store, header-aware interval limiter, and guarded GET (collector role, explicit httpx timeout). 429 waits for Retry-After. 401/403/captcha is policy_blocked. A failed page does not advance the watermark. INSERT OR IGNORE keeps an existing row.
+- `src/techpulse/collectors/openalex.py`: cursor-paged GET of `https://api.openalex.org/works` with the registry User-Agent and mailto. Works become RawRecord rows. Institution and topic ids are stored as provenance. Missing abstracts stay empty. A later update inserts a new hash and leaves the old provenance row.
+- Fixtures under `tests/fixtures/openalex/` (the 100-work page is 46768 bytes). No live HTTP.
+- `tests/unit/test_source_registry.py`: added the missing `dict[str, Any]` arguments so strict mypy can check the file that was already on this branch.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.63ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+86 files already formatted
+
+$ uv run mypy
+Success: no issues found in 55 source files
+
+$ uv run pytest -q
+........................................................................ [ 71%]
+.............................                                            [100%]
+101 passed in 3.54s
+```

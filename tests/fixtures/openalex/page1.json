@@ -1,0 +1,47 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "meta": {"count": 3, "per_page": 2, "next_cursor": "page-2"},
+    "results": [
+      {
+        "id": "https://openalex.org/W0000000001",
+        "display_name": "Sparse indexes for retrieval",
+        "publication_date": "2024-01-15",
+        "language": "en",
+        "updated_date": "2024-02-01T00:00:00",
+        "doi": "https://doi.org/10.5555/sparse.1",
+        "abstract_inverted_index": {"Sparse": [0], "indexes": [1], "help": [2], "retrieval": [3]},
+        "authorships": [
+          {
+            "institutions": [
+              {"id": "https://openalex.org/I136199984", "display_name": "Example Institute of Technology"}
+            ]
+          }
+        ],
+        "topics": [
+          {"id": "https://openalex.org/T10001", "display_name": "Information retrieval"}
+        ]
+      },
+      {
+        "id": "https://openalex.org/W0000000002",
+        "display_name": "Citation graphs under open licenses",
+        "publication_date": "2024-03-01",
+        "language": "en",
+        "updated_date": "2024-03-02T00:00:00",
+        "doi": "https://doi.org/10.5555/citation.2",
+        "abstract_inverted_index": null,
+        "authorships": [
+          {
+            "institutions": [
+              {"id": "https://openalex.org/I4210123456", "display_name": "Open Library Lab"}
+            ]
+          }
+        ],
+        "topics": [
+          {"id": "https://openalex.org/T10228", "display_name": "Scholarly communication"}
+        ]
+      }
+    ]
+  }
+}

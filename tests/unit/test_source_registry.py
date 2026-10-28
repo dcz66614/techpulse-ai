@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -26,7 +27,7 @@ PHASE_2_SOURCES = ["sec_edgar", "cninfo", "rss"]
 
 
 @pytest.fixture(scope="module")
-def registry_data() -> dict:
+def registry_data() -> dict[str, Any]:
     assert REGISTRY_PATH.exists(), f"Missing {REGISTRY_PATH}"
     with open(REGISTRY_PATH, encoding="utf-8") as f:
         data = yaml.safe_load(f)
@@ -35,19 +36,19 @@ def registry_data() -> dict:
     return data
 
 
-def test_registry_metadata(registry_data: dict) -> None:
+def test_registry_metadata(registry_data: dict[str, Any]) -> None:
     assert registry_data.get("version") == "1.0.0"
     assert "updated_at" in registry_data
     assert registry_data.get("approval_authority") == "Cd (AUTH-04)"
 
 
-def test_all_required_sources_present(registry_data: dict) -> None:
+def test_all_required_sources_present(registry_data: dict[str, Any]) -> None:
     sources = registry_data["sources"]
     for src in REQUIRED_SOURCES:
         assert src in sources, f"Required source '{src}' missing from registry"
 
 
-def test_phase_1_sources_enabled(registry_data: dict) -> None:
+def test_phase_1_sources_enabled(registry_data: dict[str, Any]) -> None:
     sources = registry_data["sources"]
     for src in PHASE_1_SOURCES:
         entry = sources[src]
@@ -55,7 +56,7 @@ def test_phase_1_sources_enabled(registry_data: dict) -> None:
         assert entry.get("disable_reason") is None
 
 
-def test_phase_2_sources_disabled(registry_data: dict) -> None:
+def test_phase_2_sources_disabled(registry_data: dict[str, Any]) -> None:
     sources = registry_data["sources"]
     for src in PHASE_2_SOURCES:
         entry = sources[src]
@@ -64,7 +65,7 @@ def test_phase_2_sources_disabled(registry_data: dict) -> None:
 
 
 @pytest.mark.parametrize("src", REQUIRED_SOURCES)
-def test_source_mandatory_fields(registry_data: dict, src: str) -> None:
+def test_source_mandatory_fields(registry_data: dict[str, Any], src: str) -> None:
     entry = registry_data["sources"][src]
     assert entry["source_id"] == src
     assert "source_family" in entry and entry["source_family"]
@@ -90,7 +91,7 @@ def test_source_mandatory_fields(registry_data: dict, src: str) -> None:
 
 
 @pytest.mark.parametrize("src", PHASE_1_SOURCES)
-def test_enabled_source_invariants(registry_data: dict, src: str) -> None:
+def test_enabled_source_invariants(registry_data: dict[str, Any], src: str) -> None:
     entry = registry_data["sources"][src]
     # Allowed methods must be GET only
     assert entry["allowed_http_methods"] == ["GET"], f"{src} allowed_http_methods must be ['GET']"
