@@ -648,3 +648,38 @@ $ uv run pytest -q
 .................                                                        [100%]
 737 passed in 11.08s
 ```
+
+## T30 Trend score, confidence, and false-positive suppression
+- `src/techpulse/trends/score.py`: section 7.3 formula. Features are clipped to [0, 1] and `anomaly_penalty` to [0, 0.30]. The score is recomputed from the stored components and weights. `high` requires at least three source families, at least two Tier-A evidence ids, a complete citation chain, a finished contrary search, and QA pass. One source family is never `high`. Unknown history or missing calibration sets `experimental_score` and confidence `low`. A non-finite value, or a penalty with no raw metric, is `fatal_error` and writes no trend rows.
+- `docs/decisions/score_weights.md` records that these coefficients are the section 7.3 engineering defaults and are not backtested.
+- Rows go through `LocalObjectStore` as `trends.jsonl` and into SQLite `trend_scores`. `tests/unit/test_t30_score.py` derives expected scores from fixture counts and the published weights. `tempfile` holds the run directory. The sealed retrieval test set was not used.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.67ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+125 files already formatted
+
+$ uv run mypy
+Success: no issues found in 79 source files
+
+$ uv run pytest -q
+........................................................................ [  9%]
+........................................................................ [ 19%]
+........................................................................ [ 28%]
+........................................................................ [ 38%]
+........................................................................ [ 48%]
+........................................................................ [ 57%]
+........................................................................ [ 67%]
+........................................................................ [ 77%]
+........................................................................ [ 86%]
+........................................................................ [ 96%]
+...........................                                              [100%]
+747 passed in 12.72s
+```
