@@ -439,7 +439,8 @@ def _chart(
     disputed: list[dict[str, object]] = []
     for name, values in named.items():
         if len(values) > 1:
-            disputed.append({"name": name, "values": list(values)})
+            entry: dict[str, object] = {"name": name, "values": list(values)}
+            disputed.append(entry)
     aggregates: list[dict[str, object]] = []
     points: list[dict[str, object]] = []
     if explicit is not None:
@@ -1285,11 +1286,9 @@ def _windows(rows: Sequence[Mapping[str, object]]) -> list[dict[str, object]]:
 
 
 def _window_sort_key(item: Mapping[str, object]) -> tuple[int, str]:
-    window = item.get("window_days")
-    trend_id = item.get("trend_id")
+    window = item["window_days"]
     days = window if isinstance(window, int) and not isinstance(window, bool) else 0
-    label = trend_id if isinstance(trend_id, str) else ""
-    return days, label
+    return days, str(item["trend_id"])
 
 
 def _markdown_topic(topic: Mapping[str, object], fingerprint: Mapping[str, str]) -> str:

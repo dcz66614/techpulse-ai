@@ -1018,3 +1018,45 @@ $ uv run pytest -q
 ................................                                         [100%]
 824 passed in 15.88s
 ```
+
+## A10 Read-only REST API
+- `src/techpulse/api/main.py`, `routes.py`, and `auth.py`: FastAPI read endpoints for health, trends, evidence, reports, and internal `/metrics`. Responses use Pydantic models, `as_of`, and `schema_version` `1.0`. A report is public only when its object-store QA manifest has `qa_pass`, `signed`, and the same `report_id`. A trend or evidence row is public only when such a snapshot names it and the SQL row is valid. Unknown or blocked licenses stay out of the response. Cursors are HMAC-SHA256 using `TECHPULSE_CURSOR_HMAC_KEY` from the process environment. Read tokens, the anonymous threshold, request ids, the CORS allow-list, and an in-process rate limit also come from the environment. SQLite opens read-only. Object bytes go through the existing `LocalObjectStore`. There are no write routes.
+- `tests/contract/test_api.py`: FastAPI `TestClient` checks for the contract, including 404, 400, and 403. No live server and no network. Fixtures use `tempfile`. The sealed retrieval test set was not used.
+- `src/techpulse/reports/render.py` and `tests/unit/test_r20_render.py`: `ruff format` reflow, and six mypy 2.4.0 errors that were already present on those files at `2460d12`. The disputed series is stored as `list[dict[str, object]]`, the window sort key narrows `window_days` to `int`, and the tests pass object fields through `str`. Dossier content is unchanged.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.87ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+138 files already formatted
+
+$ uv run mypy
+Success: no issues found in 87 source files
+
+$ uv run pytest -q
+........................................................................ [  8%]
+........................................................................ [ 17%]
+........................................................................ [ 25%]
+........................................................................ [ 34%]
+........................................................................ [ 43%]
+........................................................................ [ 51%]
+........................................................................ [ 60%]
+........................................................................ [ 68%]
+........................................................................ [ 77%]
+........................................................................ [ 86%]
+........................................................................ [ 94%]
+.............................................                            [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+837 passed, 1 warning in 12.86s
+```

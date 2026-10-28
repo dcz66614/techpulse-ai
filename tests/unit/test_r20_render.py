@@ -565,8 +565,8 @@ def test_failed_topic_is_isolated_and_the_index_degrades() -> None:
     assert "NaN" not in encoded
     source_version = result.cards["source_version"]
     assert isinstance(source_version, str)
-    assert source_version in kept
-    assert source_version in bad
+    assert str(source_version) in kept
+    assert str(source_version) in bad
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         run_render(
