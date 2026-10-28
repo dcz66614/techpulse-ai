@@ -977,3 +977,44 @@ $ python -m pytest -q tests/unit/test_r20_render.py
 $ python -m ruff check src/techpulse/reports/render.py tests/unit/test_r20_render.py
 All checks passed!
 ```
+
+## G10 Compliant sample reports
+
+- `scripts/build_samples.py` reads `tests/fixtures/evidence/records.jsonl` and runs D30 dedup, T20 features, T30 score, D40 entities, E10, E20, R10 draft, R20 render, and Q10. No network, no model, and no third-party contact. `as_of` is `2026-10-28T15:00:00Z`, the same close as `tests/integration/test_e10_pack.py`.
+- `growth/sample_1.md` is the 7-day window. `growth/sample_2.md` is the 28-day window. Facts, numbers, and URLs are copied from those outputs. Each file includes the Q10 document.
+- Both Q10 results are `fail` / `qa_pass: false` / `release_status: BLOCKED`. R10 cites reprint evidence ids that are not in the E10 pack, so URL traceability and citation coverage miss the gate. Both samples are labelled `internal demo only`. Neither is labelled publishable. External sending still needs AUTH-06.
+- `artifacts/g10-fixture/G10/manifest.json` and `metrics.json` record that run (`status: internal_demo`, `publication_blocked: true`). `artifacts/` is gitignored, so those files are on disk and are not in the commit.
+- `tests/growth/test_samples.py` checks that a second build matches the committed samples, that each sample has one Q10 status and the matching publication label, that every URL is in `tests/fixtures` or `data`, and that the text has no email or other contact data after content hashes are set aside.
+- `growth/README.md` and `growth/interview_guide.md` now point at the generated samples. The interview guide still does not send invitations.
+- mypy 2.4.0 rejected three existing R20 annotations (`dict` invariance on disputed chart series, `int()` on an `object` window, and two test assertions). The edits keep the same sort and the same series contents.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.92ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+135 files already formatted
+
+$ uv run mypy
+Success: no issues found in 87 source files
+
+$ uv run pytest -q
+........................................................................ [  8%]
+........................................................................ [ 17%]
+........................................................................ [ 26%]
+........................................................................ [ 34%]
+........................................................................ [ 43%]
+........................................................................ [ 52%]
+........................................................................ [ 61%]
+........................................................................ [ 69%]
+........................................................................ [ 78%]
+........................................................................ [ 87%]
+........................................................................ [ 96%]
+................................                                         [100%]
+824 passed in 15.88s
+```

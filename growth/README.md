@@ -7,15 +7,20 @@
 | 文件 | 状态 | 说明 |
 |---|---|---|
 | sample_template.md | 模板 | 证据完整样报的骨架；所有尖括号均为占位符 |
+| sample_1.md | 生成 | 7 日窗口样报。发布状态以文件内 q10_status 为准 |
+| sample_2.md | 生成 | 28 日窗口样报。发布状态以文件内 q10_status 为准 |
 | interview_guide.md | 草稿 | 可选客户访谈脚本、知情同意话术、匿名反馈表与 CRM 字段 |
 | README.md | 说明 | 本文件 |
 
 ## sample_1.md 与 sample_2.md
 
-- `sample_1.md` 与 `sample_2.md` 将在 R10 报告草稿与 Q10 事实 QA 均 PASS 后生成。
-- 当前 R10/Q10 尚不存在，因此本目录没有真实样报，也不预置任何事实、数字或链接。
-- 每份样报必须满足：所有 Claim 有 evidence_id、source URL 可追溯、通过 Q10 PASS，并在报告中标注“AI 生成”。
-- 未经 Q10 PASS 或尚未发布的样报，不得对外展示、发送或引用；失败样报只能作为内部演示，并须明确标注缺陷。
+- `sample_1.md` 与 `sample_2.md` 由 `scripts/build_samples.py` 写入。
+- 脚本读取 `tests/fixtures/evidence/records.jsonl`，依次运行去重、特征、评分、实体、证据包、反证、R10 草稿、R20 渲染和 Q10。
+- 样报里的事实、数字和链接只复制这些输出，不手写。
+- `q10_status` 为 pass 且 `qa_pass` 为 true 时，样报标注 publishable。
+- 其余样报标注 internal demo only，不得对外展示、发送或引用。
+- 每份样报标注“AI 生成”，并带上流水线给出的 Q10 结果。
+- 重新生成：`uv run python scripts/build_samples.py`
 
 ## 对外边界
 
@@ -32,4 +37,4 @@
 python -m pytest -q tests/growth
 ```
 
-测试检查文件存在、UTF-8 编码、AUTH-06 提示、模板必需字段，以及不存在真实 http(s) 链接。
+测试检查准备文件存在、UTF-8 编码、AUTH-06 提示、模板必需字段，以及这些准备文件不包含真实 http(s) 链接。`tests/growth/test_samples.py` 检查两份样报可重复生成、带有 Q10 状态、链接都出现在 fixtures 中，且没有个人联系方式。

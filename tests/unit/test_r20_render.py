@@ -158,9 +158,7 @@ def test_dossier_charts_cards_timeline_and_urls() -> None:
     )
     assert moved.cards["source_version"] != result.cards["source_version"]
     moved_topic = _topic(moved.cards, "rag")
-    moved_support = {
-        str(card["evidence_id"]): card for card in _rows(moved_topic["support_cards"])
-    }
+    moved_support = {str(card["evidence_id"]): card for card in _rows(moved_topic["support_cards"])}
     assert moved_support["ev_support"]["source_url"] == "https://example.org/support-2"
 
 
@@ -384,7 +382,7 @@ def test_insufficient_and_contradicted_items_are_labelled() -> None:
     assert blocked_chart["stated_as_fact"] is False
     assert _rows(blocked_chart["points"])[0]["value"] == 61
     blocked_md = blocked.markdown_files["topic_block.md"]
-    assert "由 61 变为 70" not in blocked_topic["summary"]
+    assert "由 61 变为 70" not in str(blocked_topic["summary"])
     assert "由 61 变为 70" not in blocked_md
     section = blocked_md.split("### 7 日", 1)[1].split("### 28 日", 1)[0]
     assert "contradicted" in section
@@ -422,8 +420,7 @@ def test_special_characters_are_escaped_and_foreign_urls_are_withheld() -> None:
         }
     ]
     prose = (
-        "注意 * _ [x](https://evil.example/a) | <script>alert(1)</script> 中文「引号」\n"
-        "## 已发布"
+        "注意 * _ [x](https://evil.example/a) | <script>alert(1)</script> 中文「引号」\n## 已发布"
     )
     draft = _draft(
         [
@@ -474,9 +471,7 @@ def test_special_characters_are_escaped_and_foreign_urls_are_withheld() -> None:
     assert r"\*grew\*" in markdown
     assert "「稳定」" in markdown
     foreign_card = next(
-        card
-        for card in _rows(topic["support_cards"])
-        if card["evidence_id"] == "ev_foreign"
+        card for card in _rows(topic["support_cards"]) if card["evidence_id"] == "ev_foreign"
     )
     assert foreign_card["excerpt"] is None
     assert foreign_card["excerpt_reason"] == "foreign_url"
@@ -568,8 +563,10 @@ def test_failed_topic_is_isolated_and_the_index_degrades() -> None:
     assert "series_invalid" in index
     encoded = json.dumps(result.cards, allow_nan=False)
     assert "NaN" not in encoded
-    assert result.cards["source_version"] in kept
-    assert result.cards["source_version"] in bad
+    source_version = result.cards["source_version"]
+    assert isinstance(source_version, str)
+    assert source_version in kept
+    assert source_version in bad
     with tempfile.TemporaryDirectory() as tmp:
         root = Path(tmp)
         run_render(
@@ -793,8 +790,10 @@ def _success_inputs() -> tuple[
             ),
         ]
     )
-    draft["links"] = [{"evidence_id": "ev_support", "source_url": "https://evil.example/from-draft"}]
-    entities = [
+    draft["links"] = [
+        {"evidence_id": "ev_support", "source_url": "https://evil.example/from-draft"}
+    ]
+    entities: list[dict[str, object]] = [
         {
             "canonical_id": "topic:rag",
             "entity_type": "topic",

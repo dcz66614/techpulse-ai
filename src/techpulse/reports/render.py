@@ -436,11 +436,10 @@ def _chart(
     explicit = _explicit_points(rows, window)
     active = _active_dates(rows) if window == 28 and explicit is None else None
     named = _named_values(rows, claims, blocked, _COUNT_FIELDS[window])
-    disputed = [
-        {"name": name, "values": values}
-        for name, values in named.items()
-        if len(values) > 1
-    ]
+    disputed: list[dict[str, object]] = []
+    for name, values in named.items():
+        if len(values) > 1:
+            disputed.append({"name": name, "values": list(values)})
     aggregates: list[dict[str, object]] = []
     points: list[dict[str, object]] = []
     if explicit is not None:
@@ -770,7 +769,7 @@ def _contrary_cards(
             continue
         evidence_id = _safe_id(item.get("evidence_id"))
         claim_id = _safe_id(item.get("claim_id"))
-        if evidence_id is None or ( "contrary", evidence_id) in seen:
+        if evidence_id is None or ("contrary", evidence_id) in seen:
             continue
         seen.add(("contrary", evidence_id))
         label = "contradicted" if item.get("independent") is not False else "not_independent"
@@ -1281,8 +1280,16 @@ def _windows(rows: Sequence[Mapping[str, object]]) -> list[dict[str, object]]:
                 "stated_as_fact": False,
             }
         )
-    windows.sort(key=lambda item: (int(item["window_days"]), str(item["trend_id"])))
+    windows.sort(key=_window_sort_key)
     return windows
+
+
+def _window_sort_key(item: Mapping[str, object]) -> tuple[int, str]:
+    window = item.get("window_days")
+    trend_id = item.get("trend_id")
+    days = window if isinstance(window, int) and not isinstance(window, bool) else 0
+    label = trend_id if isinstance(trend_id, str) else ""
+    return days, label
 
 
 def _markdown_topic(topic: Mapping[str, object], fingerprint: Mapping[str, str]) -> str:
