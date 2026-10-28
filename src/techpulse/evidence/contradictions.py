@@ -9,11 +9,13 @@ and citation span. Irrelevant hits are not contradictions. URLs and spans
 are copied from the record.
 
 One D30 cluster contributes at most one independent contradiction. Extra
-members of that cluster are same-origin reprints. An opposing conclusion,
-a publication-date conflict, or a statistical-definition difference is a
-major conflict and lowers confidence by one step. A numeric or date
-disagreement is also appended to the QA queue. A major conflict never
-stays at high confidence.
+members of that cluster are same-origin reprints. A cluster that already
+supports the claim contributes none: matching hits are reprints, never
+independent contradictions, and they cannot lower confidence. An opposing
+conclusion, a publication-date conflict, or a statistical-definition
+difference is a major conflict and lowers confidence by one step. A
+numeric or date disagreement is also appended to the QA queue. A major
+conflict never stays at high confidence.
 
 If retrieval cannot run, the candidate is ``contrary_search_incomplete``
 and confidence is at most medium. A finished search with no contrary hit
@@ -478,13 +480,10 @@ def _collate_support_cluster(
     )
     for hit, finding in classified:
         evidence_id = _evidence_id(hit)
-        if evidence_id in support_ids:
-            if finding.kinds:
-                draft.contradictions.append(_contradiction(draft, hit, finding, True))
-            for reason, observed in finding.qa:
-                draft.qa.append(_qa_item(draft, hit, reason, observed, same_origin=False))
-            continue
-        draft.reprints.append(_reprint(draft, hit, cluster, kept, finding.kinds))
+        # Support-cluster hits are one origin. A conflict rule makes a reprint,
+        # never an independent contradiction, so it cannot lower confidence.
+        if evidence_id != kept or finding.kinds:
+            draft.reprints.append(_reprint(draft, hit, cluster, kept, finding.kinds))
         for reason, observed in finding.qa:
             draft.qa.append(_qa_item(draft, hit, reason, observed, same_origin=True))
 

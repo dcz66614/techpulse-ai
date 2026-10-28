@@ -266,6 +266,67 @@ def test_support_cluster_reprint_does_not_downgrade() -> None:
     assert _rows(review.document["candidates"])[0]["confidence"] == "high"
 
 
+def test_same_cluster_reprint_does_not_downgrade_independent_opposition_does() -> None:
+    records = _support_records()
+    reprint = _doc(
+        "rss",
+        "reprint",
+        "news",
+        "A",
+        "2026-10-26T00:00:00Z",
+        "RAG independent records did not change from 4 to 5.",
+    )
+    clusters = {"openalex:paper": "cluster-paper", "rss:reprint": "cluster-paper"}
+    bundled = [*records, reprint]
+    pack = build_evidence_pack(
+        [_trend(7)],
+        bundled,
+        features=[_feature()],
+        clusters=clusters,
+    )
+    evidence = _rows(pack.document["evidence"])
+    reprint_item = next(item for item in evidence if item["source_url"] == reprint["canonical_url"])
+    growth = next(row for row in _rows(pack.document["claims"]) if row["template"] == "growth_7d")
+    assert reprint_item["evidence_id"] in _strings(growth["supporting_evidence_ids"])
+    assert reprint_item["cluster_id"] == "cluster-paper"
+    review = review_contradictions(pack.document, bundled, clusters=clusters)
+    contradictions = _rows(review.document["contradictions"])
+    reprints = _rows(review.document["reprints"])
+    matched = [row for row in reprints if row["source_url"] == reprint["canonical_url"]]
+    assert matched
+    assert any("opposing_conclusion" in _strings(row["kinds"]) for row in matched)
+    assert all(row.get("source_url") != reprint["canonical_url"] for row in contradictions)
+    assert all(
+        row.get("cluster_id") != "cluster-paper" or row.get("independent") is not True
+        for row in contradictions
+    )
+    candidate = _rows(review.document["candidates"])[0]
+    assert candidate["confidence"] == "high"
+    assert candidate["downgraded"] is False
+    assert candidate["major_conflict"] is False
+    assert candidate["removed_from_high_confidence"] is False
+
+    opposed = _doc(
+        "arxiv",
+        "opposed",
+        "academic",
+        "A",
+        "2026-10-26T00:00:00Z",
+        "RAG independent records did not change from 4 to 5.",
+    )
+    opposed_review = _review([opposed])
+    opposed_rows = _rows(opposed_review.document["contradictions"])
+    assert any(
+        row["source_url"] == opposed["canonical_url"] and row["independent"] is True
+        for row in opposed_rows
+    )
+    opposed_candidate = _rows(opposed_review.document["candidates"])[0]
+    assert opposed_candidate["prior_confidence"] == "high"
+    assert opposed_candidate["confidence"] == "medium"
+    assert opposed_candidate["downgraded"] is True
+    assert opposed_candidate["major_conflict"] is True
+
+
 def test_retrieval_unavailable_is_incomplete_and_caps_confidence() -> None:
     opposed = _doc(
         "arxiv",

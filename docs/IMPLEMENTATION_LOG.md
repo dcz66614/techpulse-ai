@@ -787,3 +787,37 @@ $ uv run pytest -q
 ...............................................................          [100%]
 783 passed in 12.99s
 ```
+
+## E20fix Same-origin support hits are reprints
+- `src/techpulse/evidence/contradictions.py`: a D30 cluster that already supports the claim records its hits as reprints. Those hits are not independent contradictions and cannot lower confidence. An opposing record from another cluster still lowers confidence by one step.
+- `tests/unit/test_e20_contradictions.py`: a same-cluster opposing reprint stays at high confidence, and an independent opposing record still downgrades. The sealed retrieval test set was not used.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.70ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+132 files already formatted
+
+$ uv run mypy
+Success: no issues found in 83 source files
+
+$ uv run pytest -q
+........................................................................ [  9%]
+........................................................................ [ 18%]
+........................................................................ [ 27%]
+........................................................................ [ 36%]
+........................................................................ [ 45%]
+........................................................................ [ 55%]
+........................................................................ [ 64%]
+........................................................................ [ 73%]
+........................................................................ [ 82%]
+........................................................................ [ 91%]
+................................................................         [100%]
+784 passed in 11.92s
+```
