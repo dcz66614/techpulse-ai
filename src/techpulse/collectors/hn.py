@@ -7,6 +7,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 
@@ -153,7 +154,15 @@ def _raw_record(**values: Any) -> RawRecord:
 
 def _retry_after(response: httpx.Response) -> float | None:
     value = response.headers.get("retry-after")
-    try:
-        return max(0.0, float(value)) if value else None
-    except ValueError:
+    if not value:
         return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        try:
+            parsed = parsedate_to_datetime(value)
+        except (TypeError, ValueError):
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return max(0.0, (parsed - datetime.now(UTC)).total_seconds())

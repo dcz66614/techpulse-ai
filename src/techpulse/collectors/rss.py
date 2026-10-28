@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
@@ -99,10 +100,11 @@ class RSSCollector:
             raise CollectorError("RSS server failure", TaskStatus.RETRYABLE_ERROR)
         if response.status_code >= 400:
             raise CollectorError("RSS request failed", TaskStatus.FATAL_ERROR)
-        records = tuple(self._record(item, feed) for item in _feed_items(response.content))
-        records = tuple(record for record in records if record.source_record_id != cursor)
-        latest = records[0].source_record_id if records else cursor
-        return RSSCollection(records, latest)
+        previous = _decode_cursor(cursor)
+        candidates = tuple(self._record(item, feed) for item in _feed_items(response.content))
+        records = tuple(record for record in candidates if _record_key(record) > previous)
+        latest = max((_record_key(record) for record in candidates), default=previous)
+        return RSSCollection(records, json.dumps(latest, separators=(",", ":")))
 
     def _record(self, item: dict[str, str], feed: FeedPolicy) -> RawRecord:
         source_url = item["link"]
@@ -156,6 +158,23 @@ def _feed_items(content: bytes) -> list[dict[str, str]]:
     return items
 
 
+def _record_key(record: RawRecord) -> tuple[str, str]:
+    return (record.published_at.isoformat() if record.published_at else "", record.source_record_id)
+
+
+def _decode_cursor(cursor: str | None) -> tuple[str, str]:
+    if not cursor:
+        return ("", "")
+    value = json.loads(cursor)
+    if (
+        not isinstance(value, list)
+        or len(value) != 2
+        or not all(isinstance(item, str) for item in value)
+    ):
+        raise ValueError("invalid RSS cursor")
+    return (value[0], value[1])
+
+
 def _published_at(value: str | None) -> str | None:
     if not value:
         return None
@@ -177,7 +196,15 @@ def _raw_record(**values: Any) -> RawRecord:
 
 def _retry_after(response: httpx.Response) -> float | None:
     value = response.headers.get("retry-after")
-    try:
-        return max(0.0, float(value)) if value else None
-    except ValueError:
+    if not value:
         return None
+    try:
+        return max(0.0, float(value))
+    except ValueError:
+        try:
+            parsed = parsedate_to_datetime(value)
+        except (TypeError, ValueError):
+            return None
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=UTC)
+        return max(0.0, (parsed - datetime.now(UTC)).total_seconds())

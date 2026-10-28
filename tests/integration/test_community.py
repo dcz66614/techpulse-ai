@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime, timedelta
+from email.utils import format_datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -143,3 +145,83 @@ def test_reviewed_rss_path_emits_metadata_only_records() -> None:
         assert record.abstract_or_excerpt == ""
         assert "private@example.test" not in serialized
         assert "copyrighted article" not in serialized
+
+
+def test_rss_cursor_replay_returns_no_previous_records() -> None:
+    with TemporaryDirectory() as directory:
+        registry = Path(directory) / "source_registry.yaml"
+        text = (
+            REGISTRY.read_text(encoding="utf-8")
+            .replace('    base_url: "not stated"', '    base_url: "https://feeds.example.test"')
+            .replace(
+                '    enabled: false\n    disable_reason: "Phase 2 source;',
+                '    enabled: true\n    disable_reason: "Phase 2 source;',
+            )
+        )
+        registry.write_text(text, encoding="utf-8")
+        feed = FeedPolicy(
+            url="https://feeds.example.test/feed.xml",
+            policy_snapshot_id="reviewed-feed-v1",
+            enabled=True,
+            robots_allowed=True,
+            license_status=LicenseStatus.METADATA_ONLY,
+        )
+        with RSSCollector(
+            registry_path=registry, policy_path=POLICY, transport=CommunityTransport()
+        ) as collector:
+            first = collector.collect(feed)
+            replay = collector.collect(feed, first.cursor)
+    assert first.records
+    assert replay.records == ()
+    assert replay.cursor == first.cursor
+
+
+@pytest.mark.parametrize("source", ["hn", "rss"])
+@pytest.mark.parametrize("retry_after", ["120", "http-date"])
+def test_retry_after_accepts_seconds_and_http_date(source: str, retry_after: str) -> None:
+    header = (
+        format_datetime(datetime.now(UTC) + timedelta(seconds=120), usegmt=True)
+        if retry_after == "http-date"
+        else retry_after
+    )
+
+    class LimitedTransport(httpx.BaseTransport):
+        def handle_request(self, request: httpx.Request) -> httpx.Response:
+            return httpx.Response(429, headers={"Retry-After": header}, request=request)
+
+    transport = LimitedTransport()
+    if source == "hn":
+        with HNCollector(
+            registry_path=REGISTRY,
+            policy_path=POLICY,
+            transport=transport,
+            sleeper=lambda _seconds: None,
+        ) as hn_collector:
+            with pytest.raises(CollectorError) as failure:
+                hn_collector.collect([4567001])
+    else:
+        with TemporaryDirectory() as directory:
+            registry = Path(directory) / "source_registry.yaml"
+            text = (
+                REGISTRY.read_text(encoding="utf-8")
+                .replace('    base_url: "not stated"', '    base_url: "https://feeds.example.test"')
+                .replace(
+                    '    enabled: false\n    disable_reason: "Phase 2 source;',
+                    '    enabled: true\n    disable_reason: "Phase 2 source;',
+                )
+            )
+            registry.write_text(text, encoding="utf-8")
+            feed = FeedPolicy(
+                url="https://feeds.example.test/feed.xml",
+                policy_snapshot_id="reviewed-feed-v1",
+                enabled=True,
+                robots_allowed=True,
+                license_status=LicenseStatus.METADATA_ONLY,
+            )
+            with RSSCollector(
+                registry_path=registry, policy_path=POLICY, transport=transport
+            ) as rss_collector:
+                with pytest.raises(CollectorError) as failure:
+                    rss_collector.collect(feed)
+    assert failure.value.retry_after is not None
+    assert 118 <= failure.value.retry_after <= 120

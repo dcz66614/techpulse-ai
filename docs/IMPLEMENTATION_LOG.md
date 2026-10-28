@@ -280,3 +280,7 @@ $ uv run pytest -q
 ## C21 Hacker News and compliant RSS collectors
 - Added HN public item metadata collection and reviewed per-feed RSS/Atom metadata collection through S20. Records validate against the P10 schema; usernames, contacts, and full text are discarded. RSS remains disabled in the shipped phase-2 registry and unknown feeds are policy-blocked before HTTP.
 - Real final output: `uv lock --check` → `Resolved 88 packages in 0.58ms`; `uv run ruff check .` → `All checks passed!`; `uv run ruff format --check .` → `76 files already formatted`; `uv run mypy` → `Success: no issues found in 55 source files`; `uv run pytest -q` → `97 passed in 3.27s`.
+
+## CBfix Collector review fixes
+- GitHub authentication forwards the environment token without logging it; RSS cursors now use monotonic `(published_at, id)` keys and replay tests; HN and RSS accept numeric and HTTP-date `Retry-After` values.
+- Real final output: `uv lock --check` → `Resolved 88 packages in 0.79ms`; `uv run ruff check .` → `All checks passed!`; `uv run ruff format --check .` → `78 files already formatted`; `uv run mypy` → `Success: no issues found in 55 source files`; `uv run pytest -q` → `102 passed in 3.72s`.
