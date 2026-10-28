@@ -856,3 +856,38 @@ $ uv run pytest -q
 ..                                                                       [100%]
 794 passed in 12.37s
 ```
+
+## R10fix Ignore evidence ids missing from the pack
+- `src/techpulse/reports/draft.py`: an evidence id counts only when an evidence item in the pack carries it. A claim that cites an id absent from the pack, such as `ev_not_in_evidence`, does not turn an unchanged evidence set into `success`. That claim is not stated as a fact. It is recorded as an omission with reason `evidence_not_in_pack`.
+- `tests/unit/test_r10_draft.py`: a supported claim and a mixed claim that cite `ev_not_in_evidence` stay `no_material_update` against the previous evidence ids, and the open draft flags both claims. The sealed retrieval test set was not used.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.61ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+134 files already formatted
+
+$ uv run mypy
+Success: no issues found in 84 source files
+
+$ uv run pytest -q
+........................................................................ [  9%]
+........................................................................ [ 18%]
+........................................................................ [ 27%]
+........................................................................ [ 36%]
+........................................................................ [ 45%]
+........................................................................ [ 54%]
+........................................................................ [ 63%]
+........................................................................ [ 72%]
+........................................................................ [ 81%]
+........................................................................ [ 90%]
+........................................................................ [ 99%]
+...                                                                      [100%]
+795 passed in 12.80s
+```

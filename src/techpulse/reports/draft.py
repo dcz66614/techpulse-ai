@@ -7,8 +7,10 @@ schema-valid evidence item. E20 contradictions and QA disagreements are not
 stated as facts. An inference is labelled ``hypothesis``.
 
 ``template_version`` is ``template-v1``. The prompt/model version is
-``template-v1/none``. When a previous id list already contains every evidence
-id in this run, or when nothing can be cited, the status is
+``template-v1/none``. An evidence id counts only when an evidence item in the
+pack carries it. A claim that cites an id absent from the pack is not stated
+as a fact and is recorded as an omission. When a previous id list already
+contains every counted id, or when nothing can be cited, the status is
 ``no_material_update``.
 
 Bytes for the JSON artifacts go through ``ObjectStore``. The local backend
@@ -174,18 +176,10 @@ def draft_report(
     seen = _raw_ids(evidence_pack, contradictions)
     prior = _prior(previous_evidence_ids)
     new_ids = None if prior is None else tuple(sorted(seen - prior))
-    if prior is not None and not new_ids:
-        return _terminal(
-            "no_material_update",
-            run_id,
-            checked_kind,
-            tuple(sorted(seen)),
-            error=None,
-            compared=True,
-            new_ids=(),
-        )
+    unchanged = prior is not None and not new_ids
     claims, omissions, links = _assemble(evidence_pack, contradictions, trends)
-    if not claims:
+    if unchanged or not claims:
+        flagged = [dict(item) for item in omissions if item.get("reason") == "evidence_not_in_pack"]
         return _terminal(
             "no_material_update",
             run_id,
@@ -193,7 +187,8 @@ def draft_report(
             tuple(sorted(seen)),
             error=None,
             compared=prior is not None,
-            new_ids=new_ids,
+            new_ids=() if unchanged else new_ids,
+            omissions=flagged,
         )
     return _publish(
         claims,
@@ -309,7 +304,9 @@ def _terminal(
     error: str | None,
     compared: bool,
     new_ids: tuple[str, ...] | None,
+    omissions: Sequence[Mapping[str, object]] = (),
 ) -> ReportDraft:
+    stored = [dict(item) for item in omissions]
     document = _document(
         status,
         run_id,
@@ -317,14 +314,14 @@ def _terminal(
         evidence_ids,
         error=error,
         claims=[],
-        omissions=[],
+        omissions=stored,
         links=[],
     )
-    markdown = _short_markdown(document)
+    markdown = _short_markdown(document, stored)
     metrics = _metrics(
         status,
         (),
-        (),
+        stored,
         (),
         evidence_ids,
         compared=compared,
@@ -341,6 +338,7 @@ def _assemble(
 ) -> tuple[list[_Claim], list[dict[str, object]], list[dict[str, object]]]:
     topics = _topics(evidence_pack, trends)
     valid = _valid_index(evidence_pack, contradictions)
+    present = _pack_evidence_ids(evidence_pack)
     claims_in = _mappings(evidence_pack.get("claims"))
     chains = _mappings(contradictions.get("chains"))
     contradiction_rows = _mappings(contradictions.get("contradictions"))
@@ -350,7 +348,17 @@ def _assemble(
     built: list[_Claim] = []
     omissions: list[dict[str, object]] = []
     for claim in claims_in:
-        _consume_claim(claim, topics, valid, blocked, contradiction_rows, qa_rows, built, omissions)
+        _consume_claim(
+            claim,
+            topics,
+            valid,
+            present,
+            blocked,
+            contradiction_rows,
+            qa_rows,
+            built,
+            omissions,
+        )
     _consume_reprints(reprint_rows, built)
     _consume_incomplete(contradictions, claims_in, valid, built, omissions)
     built.sort(key=_claim_sort)
@@ -362,6 +370,7 @@ def _consume_claim(
     claim: Mapping[str, object],
     topics: Mapping[str, str],
     valid: Mapping[str, Mapping[str, object]],
+    present: set[str],
     blocked: set[str],
     contradiction_rows: Sequence[Mapping[str, object]],
     qa_rows: Sequence[Mapping[str, object]],
@@ -392,6 +401,10 @@ def _consume_claim(
             built,
             omissions,
         )
+        return
+    referenced = _strings(claim.get("supporting_evidence_ids"))
+    if any(evidence_id not in present for evidence_id in referenced):
+        omissions.append(_omission(claim_id, trend_id, template, "evidence_not_in_pack"))
         return
     if not support:
         omissions.append(_omission(claim_id, trend_id, template, "evidence_not_schema_valid"))
@@ -693,7 +706,10 @@ def _markdown(
     return "\n".join(lines)
 
 
-def _short_markdown(document: Mapping[str, object]) -> str:
+def _short_markdown(
+    document: Mapping[str, object],
+    omissions: Sequence[Mapping[str, object]] = (),
+) -> str:
     status = document.get("status")
     if status == "schema_error":
         sentence = "输入未通过结构检查，未生成事实陈述。"
@@ -701,6 +717,8 @@ def _short_markdown(document: Mapping[str, object]) -> str:
         sentence = "本窗口没有新的证据，不生成事实陈述。"
     lines = _header(document)
     lines.extend([sentence, ""])
+    for item in omissions:
+        lines.extend([_omission_line(item), ""])
     return "\n".join(lines)
 
 
@@ -915,20 +933,25 @@ def _structure_error(
     return None
 
 
+def _pack_evidence_ids(evidence_pack: Mapping[str, object]) -> set[str]:
+    found: set[str] = set()
+    for item in _mappings(evidence_pack.get("evidence")):
+        _add_id(found, item.get("evidence_id"))
+    return found
+
+
 def _raw_ids(
     evidence_pack: Mapping[str, object],
     contradictions: Mapping[str, object],
 ) -> set[str]:
-    found: set[str] = set()
-    for item in _mappings(evidence_pack.get("evidence")):
-        _add_id(found, item.get("evidence_id"))
-    for claim in _mappings(evidence_pack.get("claims")):
-        for evidence_id in _strings(claim.get("supporting_evidence_ids")):
-            _add_id(found, evidence_id)
+    present = _pack_evidence_ids(evidence_pack)
+    found: set[str] = set(present)
     for key in ("contradictions", "reprints", "qa_queue"):
         for item in _mappings(contradictions.get(key)):
-            _add_id(found, item.get("evidence_id"))
-            _add_id(found, item.get("kept_evidence_id"))
+            for field in ("evidence_id", "kept_evidence_id"):
+                evidence_id = item.get(field)
+                if isinstance(evidence_id, str) and evidence_id in present:
+                    _add_id(found, evidence_id)
     return found
 
 

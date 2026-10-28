@@ -114,6 +114,74 @@ def test_no_material_update_when_evidence_ids_are_unchanged() -> None:
     assert opened.document == first.document
 
 
+def test_missing_evidence_id_is_not_a_material_update() -> None:
+    pack, review, trends = _success_inputs()
+    baseline = draft_report(pack, review, trends, run_id="r10-missing-id")
+    assert "ev_not_in_evidence" not in baseline.evidence_ids
+    phantom = {
+        "claim_id": "cl_not_in_evidence",
+        "trend_id": TREND,
+        "template": "growth_7d",
+        "status": "supported",
+        "window_start": START,
+        "window_end": END,
+        "text": "https://evil.example/missing from 8 to 9",
+        "inputs": {"growth_previous": 8, "growth_current": 9},
+        "supporting_evidence_ids": ["ev_not_in_evidence"],
+    }
+    mixed = {
+        "claim_id": "cl_mixed_missing",
+        "trend_id": TREND,
+        "template": "persistence_28d",
+        "status": "supported",
+        "window_start": START,
+        "window_end": END,
+        "inputs": {"persistence_numerator": 3, "persistence_denominator": 28},
+        "supporting_evidence_ids": ["ev_support", "ev_not_in_evidence"],
+    }
+    claims = [*_rows(pack["claims"]), phantom, mixed]
+    updated = dict(pack)
+    updated["claims"] = claims
+    compared = draft_report(
+        updated,
+        review,
+        trends,
+        previous_evidence_ids=baseline.evidence_ids,
+        run_id="r10-missing-id",
+    )
+    assert compared.status == "no_material_update"
+    assert compared.document["claims"] == []
+    assert "ev_not_in_evidence" not in compared.evidence_ids
+    assert compared.metrics["new_evidence_ids"] == 0
+    assert "由 8 变为 9" not in compared.markdown
+    assert "evil.example" not in compared.markdown
+    flags = _rows(compared.document["omissions"])
+    assert {str(item["claim_id"]) for item in flags} == {
+        "cl_not_in_evidence",
+        "cl_mixed_missing",
+    }
+    assert {str(item["reason"]) for item in flags} == {"evidence_not_in_pack"}
+    assert "cl_not_in_evidence" in compared.markdown
+    assert "不作为事实陈述" in compared.markdown
+    opened = draft_report(updated, review, trends, run_id="r10-missing-id")
+    assert opened.status == "success"
+    assert "ev_not_in_evidence" not in opened.evidence_ids
+    rendered = _rows(opened.document["claims"])
+    assert all(
+        claim["source_claim_id"] not in {"cl_not_in_evidence", "cl_mixed_missing"}
+        for claim in rendered
+        if claim["kind"] == "fact"
+    )
+    assert "由 8 变为 9" not in opened.markdown
+    assert "28 个 UTC 日中的 3 日" not in opened.markdown
+    opened_flags = {
+        str(item["claim_id"]): str(item["reason"]) for item in _rows(opened.document["omissions"])
+    }
+    assert opened_flags["cl_not_in_evidence"] == "evidence_not_in_pack"
+    assert opened_flags["cl_mixed_missing"] == "evidence_not_in_pack"
+    assert "ev_not_in_evidence" not in opened.markdown
+
+
 def test_insufficient_evidence_is_not_stated_as_fact() -> None:
     evidence = [_evidence("ev_support", SUPPORT_URL)]
     claim: dict[str, object] = {
