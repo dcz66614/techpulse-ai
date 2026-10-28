@@ -7,8 +7,11 @@ is never high. An experimental trend stays low. Degraded retrieval cannot
 stay high.
 
 A trend with no traceable support is ``insufficient_evidence`` and is left
-off the high-confidence list. Bytes go through ``ObjectStore``. The local
-backend writes under the artifacts directory. SQLite holds the evidence rows.
+off the high-confidence list. Evidence below the claim key-term rule is
+unrelated and does not count toward support or confidence. An item marked
+``citation_span_missing`` is excluded from support and from the citation
+chain rate. Bytes go through ``ObjectStore``. The local backend writes
+under the artifacts directory. SQLite holds the evidence rows.
 """
 
 from __future__ import annotations
@@ -25,6 +28,7 @@ from urllib.parse import urlsplit
 from techpulse.evidence.retrieve import (
     ClaimDraft,
     draft_claims,
+    evidence_supports_claim,
     prepare_corpus,
     retrieve_from_corpus,
 )
@@ -122,11 +126,13 @@ def build_evidence_pack(
     reprints = 0
     incomplete = 0
     out_of_window = 0
+    unrelated = 0
     degraded = False
     for trend in trends:
         drafts = draft_claims(trend, _feature_for(trend, indexed))
         claim_evidence: list[tuple[ClaimDraft, tuple[dict[str, object], ...], bool]] = []
         trend_degraded = False
+        topic = _text(trend.get("topic")) or _text(trend.get("topic_id")) or ""
         for draft in drafts:
             support = retrieve_from_corpus(
                 draft.query,
@@ -135,13 +141,16 @@ def build_evidence_pack(
                 window_end=draft.window_end,
                 clusters=clusters,
                 vector_store_available=vector_store_available,
+                topic=topic,
+                claim_inputs=draft.inputs,
             )
             reprints += support.dropped_reprints
             incomplete += support.dropped_incomplete
             out_of_window += support.dropped_out_of_window
+            unrelated += support.dropped_unrelated
             trend_degraded = trend_degraded or support.degraded
             claim_evidence.append((draft, support.evidence, support.degraded))
-            for item in support.evidence:
+            for item in (*support.evidence, *support.span_missing):
                 evidence_id = item.get("evidence_id")
                 if isinstance(evidence_id, str):
                     evidence_by_id.setdefault(evidence_id, item)
@@ -196,6 +205,10 @@ def build_evidence_pack(
         "url_chain_complete_rate": _chain_rate(evidence),
         "reprint_duplicates_dropped": reprints,
         "incomplete_records_dropped": incomplete,
+        "unrelated_dropped": unrelated,
+        "citation_span_missing": sum(
+            1 for item in evidence if item.get("citation_span_missing") is True
+        ),
         "skipped_duplicate_records": prepared.skipped_duplicates,
         "out_of_window_dropped": out_of_window,
         "retrieval_degraded": degraded,
@@ -263,9 +276,7 @@ def _trend_row(
     claims: list[dict[str, object]] = []
     evidence_ids: list[str] = []
     for draft, items, claim_degraded in claim_evidence:
-        ids = [
-            str(item["evidence_id"]) for item in items if isinstance(item.get("evidence_id"), str)
-        ]
+        ids = _support_ids(draft, items, topic)
         for evidence_id in ids:
             if evidence_id not in evidence_ids:
                 evidence_ids.append(evidence_id)
@@ -335,6 +346,37 @@ def _trend_row(
     return row, claims
 
 
+def _support_ids(
+    draft: ClaimDraft,
+    items: Sequence[Mapping[str, object]],
+    topic: str,
+) -> list[str]:
+    """Keep ids whose cited text passes the claim rule and has a real span."""
+    ids: list[str] = []
+    for item in items:
+        if item.get("citation_span_missing") is True:
+            continue
+        if not isinstance(item.get("citation_span"), dict):
+            continue
+        if not evidence_supports_claim(topic, _evidence_text(item), draft.inputs):
+            continue
+        evidence_id = item.get("evidence_id")
+        if isinstance(evidence_id, str) and evidence_id not in ids:
+            ids.append(evidence_id)
+    return ids
+
+
+def _evidence_text(item: Mapping[str, object]) -> str:
+    parts: list[str] = []
+    title = item.get("title")
+    excerpt = item.get("normalized_excerpt")
+    if isinstance(title, str) and title:
+        parts.append(title)
+    if isinstance(excerpt, str) and excerpt:
+        parts.append(excerpt)
+    return "\n".join(parts)
+
+
 def _families_and_tier(
     evidence_ids: Sequence[str],
     claim_evidence: Sequence[tuple[ClaimDraft, tuple[dict[str, object], ...], bool]],
@@ -364,6 +406,8 @@ def _item(
 
 
 def _chain_complete(item: Mapping[str, object]) -> bool:
+    if item.get("citation_span_missing") is True:
+        return False
     url = item.get("source_url")
     digest = item.get("sha256")
     published = item.get("source_published_at")
@@ -404,10 +448,11 @@ def _chain_complete(item: Mapping[str, object]) -> bool:
 
 
 def _chain_rate(evidence: Sequence[Mapping[str, object]]) -> float:
-    if not evidence:
+    considered = [item for item in evidence if item.get("citation_span_missing") is not True]
+    if not considered:
         return 1.0
-    complete = sum(1 for item in evidence if _chain_complete(item))
-    return complete / len(evidence)
+    complete = sum(1 for item in considered if _chain_complete(item))
+    return complete / len(considered)
 
 
 def _pack_status(trends: Sequence[Mapping[str, object]]) -> str:

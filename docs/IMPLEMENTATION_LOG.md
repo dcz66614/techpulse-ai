@@ -717,4 +717,39 @@ $ uv run pytest -q
 ........................................................................ [ 94%]
 ...........................................                              [100%]
 763 passed in 12.73s
+
+## E10fix Claim relevance and citation spans
+- `evidence_supports_claim` is the support rule. Topic/entity terms are the BM25 tokens of the topic except the generic label `topic`. Claim key terms add the tokens of the stored claim inputs (measured counts and source-family names). Template words and timestamps are not inputs. Evidence is support only when it contains every topic/entity term and shares at least two key terms when the claim has that many, including one measurement when the claim has one. A single shared token, including generic "RAG evidence" text, is unrelated and does not count toward support or confidence.
+- A missing or invalid upstream citation span is not replaced with a whole-field span. The item is marked `citation_span_missing`, left out of support, and left out of `url_chain_complete_rate`.
+- Support fixtures quote the stored growth counts. `tests/unit/test_e10_evidence.py` covers unrelated generic text and missing spans. The sealed retrieval test set was not used.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.65ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+129 files already formatted
+
+$ uv run mypy
+Success: no issues found in 81 source files
+
+$ uv run pytest -q
+........................................................................ [  9%]
+........................................................................ [ 18%]
+........................................................................ [ 28%]
+........................................................................ [ 37%]
+........................................................................ [ 47%]
+........................................................................ [ 56%]
+........................................................................ [ 65%]
+........................................................................ [ 75%]
+........................................................................ [ 84%]
+........................................................................ [ 94%]
+.............................................                            [100%]
+765 passed in 12.50s
+```
 ```

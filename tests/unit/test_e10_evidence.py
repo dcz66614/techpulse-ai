@@ -28,6 +28,7 @@ START = "2026-10-22T00:00:00Z"
 END = "2026-10-29T00:00:00Z"
 AS_OF = "2026-10-28T15:00:00Z"
 COLLECTED = "2026-10-27T00:00:00Z"
+SUPPORT_EXCERPT = "RAG records changed from 4 to 5."
 
 
 def test_claims_quote_stored_counts_and_stop_at_three() -> None:
@@ -177,9 +178,9 @@ def test_high_confidence_needs_the_t30_gates() -> None:
     weak = build_evidence_pack(
         [_trend(7)],
         [
-            _doc("openalex", "a", "academic", "A", "2026-10-22T00:00:00Z"),
-            _doc("github", "b", "code", "B", "2026-10-23T00:00:00Z"),
-            _doc("hn", "c", "community", "B", "2026-10-24T00:00:00Z"),
+            _doc("openalex", "a", "academic", "A", "2026-10-22T00:00:00Z", SUPPORT_EXCERPT),
+            _doc("github", "b", "code", "B", "2026-10-23T00:00:00Z", SUPPORT_EXCERPT),
+            _doc("hn", "c", "community", "B", "2026-10-24T00:00:00Z", SUPPORT_EXCERPT),
         ],
         features=[feature],
     )
@@ -189,7 +190,7 @@ def test_high_confidence_needs_the_t30_gates() -> None:
     single = build_evidence_pack(
         [_trend(7)],
         [
-            _doc("openalex", f"s{index}", "academic", "A", "2026-10-22T00:00:00Z")
+            _doc("openalex", f"s{index}", "academic", "A", "2026-10-22T00:00:00Z", SUPPORT_EXCERPT)
             for index in range(3)
         ],
         features=[feature],
@@ -229,6 +230,11 @@ def test_insufficient_evidence_leaves_the_high_list() -> None:
     bread = _doc("rss", "bread", "news", "A", "2026-10-22T00:00:00Z")
     bread["title"] = "Sourdough method"
     bread["abstract_or_excerpt"] = "Flour and water"
+    bread["citation_span"] = {
+        "field": "abstract_or_excerpt",
+        "start": 0,
+        "end": len("Flour and water"),
+    }
     feature = _feature()
     missing = _trend(7)
     missing["trend_id"] = "trend:topic:missing:7:2026-10-28"
@@ -338,6 +344,77 @@ def test_modules_do_not_call_a_model_api() -> None:
     assert "embedder_from_env" not in folded
 
 
+def test_generic_rag_evidence_is_unrelated_and_never_high() -> None:
+    generic = [
+        _doc("openalex", "paper", "academic", "A", "2026-10-22T00:00:00Z"),
+        _doc("arxiv", "note", "academic", "A", "2026-10-23T00:00:00Z"),
+        _doc("github", "repo", "code", "A", "2026-10-24T00:00:00Z"),
+        _doc("hn", "thread", "community", "B", "2026-10-25T00:00:00Z"),
+    ]
+    pack = build_evidence_pack([_trend(7)], generic, features=[_feature()])
+    trend = _trends(pack.document)[0]
+    assert trend["status"] == "insufficient_evidence"
+    assert trend["confidence"] == "low"
+    assert trend["supporting_evidence_ids"] == []
+    assert trend["removed_from_high_confidence"] is True
+    assert pack.document["high_confidence_trend_ids"] == []
+    assert pack.document["evidence"] == []
+    assert _as_int(pack.metrics["unrelated_dropped"]) >= 1
+
+
+def test_missing_citation_span_is_excluded_from_support_and_chain() -> None:
+    valid = _doc("openalex", "paper", "academic", "A", "2026-10-22T00:00:00Z", SUPPORT_EXCERPT)
+    missing = _doc(
+        "github",
+        "repo",
+        "code",
+        "A",
+        "2026-10-24T00:00:00Z",
+        SUPPORT_EXCERPT,
+        with_span=False,
+    )
+    invalid = _doc(
+        "hn",
+        "thread",
+        "community",
+        "B",
+        "2026-10-25T00:00:00Z",
+        SUPPORT_EXCERPT,
+        with_span=False,
+    )
+    invalid["citation_span"] = {
+        "field": "abstract_or_excerpt",
+        "start": 0,
+        "end": len(SUPPORT_EXCERPT) + 5,
+    }
+    pack = build_evidence_pack(
+        [_trend(7)],
+        [valid, missing, invalid],
+        features=[_feature()],
+    )
+    trend = _trends(pack.document)[0]
+    evidence = {str(item["source_record_id"]): item for item in _evidence(pack.document)}
+    paper = evidence["paper"]
+    assert "citation_span" in paper
+    assert paper.get("citation_span_missing") is not True
+    support_ids = _strings(trend["supporting_evidence_ids"])
+    assert _text(paper["evidence_id"]) in support_ids
+    for sid in ("repo", "thread"):
+        item = evidence[sid]
+        assert item["citation_span_missing"] is True
+        assert "citation_span" not in item
+        assert _text(item["evidence_id"]) not in support_ids
+    assert pack.metrics["url_chain_complete_rate"] == 1.0
+    assert _as_int(pack.metrics["citation_span_missing"]) == 2
+    only = build_evidence_pack([_trend(7)], [missing], features=[_feature()])
+    only_trend = _trends(only.document)[0]
+    assert only_trend["status"] == "insufficient_evidence"
+    assert only_trend["confidence"] == "low"
+    assert only_trend["supporting_evidence_ids"] == []
+    assert only.document["high_confidence_trend_ids"] == []
+    assert only.metrics["url_chain_complete_rate"] == 1.0
+
+
 def test_empty_input_is_insufficient() -> None:
     pack = build_evidence_pack([], [])
     assert pack.status == "insufficient_evidence"
@@ -392,10 +469,10 @@ def _trend(window: int, **overrides: object) -> dict[str, object]:
 
 def _support_records() -> list[dict[str, object]]:
     return [
-        _doc("openalex", "paper", "academic", "A", "2026-10-22T00:00:00Z"),
-        _doc("arxiv", "note", "academic", "A", "2026-10-23T00:00:00Z"),
-        _doc("github", "repo", "code", "A", "2026-10-24T00:00:00Z"),
-        _doc("hn", "thread", "community", "B", "2026-10-25T00:00:00Z"),
+        _doc("openalex", "paper", "academic", "A", "2026-10-22T00:00:00Z", SUPPORT_EXCERPT),
+        _doc("arxiv", "note", "academic", "A", "2026-10-23T00:00:00Z", SUPPORT_EXCERPT),
+        _doc("github", "repo", "code", "A", "2026-10-24T00:00:00Z", SUPPORT_EXCERPT),
+        _doc("hn", "thread", "community", "B", "2026-10-25T00:00:00Z", SUPPORT_EXCERPT),
     ]
 
 
@@ -405,8 +482,12 @@ def _doc(
     family: str,
     tier: str,
     published: str,
+    excerpt: str | None = None,
+    *,
+    with_span: bool = True,
 ) -> dict[str, object]:
-    return {
+    body = excerpt if excerpt is not None else f"RAG evidence for {sid}"
+    row: dict[str, object] = {
         "source_id": source,
         "source_record_id": sid,
         "source_family": family,
@@ -414,13 +495,16 @@ def _doc(
         "canonical_id": f"{source}:{sid}",
         "canonical_url": f"https://example.org/{source}/{sid}",
         "title": f"RAG note {sid}",
-        "abstract_or_excerpt": f"RAG evidence for {sid}",
+        "abstract_or_excerpt": body,
         "published_at": published,
         "collected_at": COLLECTED,
         "license_status": "metadata_only",
         "content_sha256": hashlib.sha256(f"{source}:{sid}".encode()).hexdigest(),
         "policy_snapshot_id": "fixture-2026-10-27",
     }
+    if with_span:
+        row["citation_span"] = {"field": "abstract_or_excerpt", "start": 0, "end": len(body)}
+    return row
 
 
 def _trends(document: Mapping[str, object]) -> list[dict[str, object]]:

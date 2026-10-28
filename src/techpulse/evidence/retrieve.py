@@ -3,13 +3,17 @@
 Claims are filled from numbers already stored on the trend or its T20
 feature row. Nothing in this module calls a model or a paid API.
 
-Support hits come from ``techpulse.index.hybrid.retrieve``. They are then
-graded by quality tier, publication time, and source family. A hashed dense
-neighbor with no shared token is not support: I20 already omits a BM25
-score of zero, and only those ids are graded. A D30 cluster contributes
-one hit. A hit is kept only when the upstream record already has an https
-URL, a raw sha256, a date, a public license, and a citation span. Missing
-provenance is dropped. URLs are not filled in.
+Support hits come from ``techpulse.index.hybrid.retrieve``. A hashed dense
+neighbor with no shared token is not support, because I20 omits a BM25
+score of zero. A lexical hit is still not support until it passes
+``evidence_supports_claim``. Hits are then graded by quality tier,
+publication time, and source family. One D30 cluster contributes one hit.
+
+A hit is kept only when the upstream record already has an https URL, a
+raw sha256, a date, a public license, and a citation span that points into
+that record. A missing or invalid span is not replaced with the whole
+field. That item is marked ``citation_span_missing`` and is not support.
+URLs are not filled in.
 """
 
 from __future__ import annotations
@@ -24,6 +28,7 @@ from datetime import datetime
 from pydantic import ValidationError
 
 from techpulse.contracts import EvidenceItem
+from techpulse.index.bm25 import tokenize
 from techpulse.index.embed import (
     ActiveCorpus,
     CorpusDocument,
@@ -36,6 +41,8 @@ from techpulse.trends.features import _FAMILY_ALIASES, _FAMILY_BY_SOURCE, _parse
 
 MAX_CLAIMS = 3
 MAX_EVIDENCE = 10
+# Topic/entity tokens plus stored measurements. One shared token is not enough.
+MIN_KEY_TERM_OVERLAP = 2
 _SHA = re.compile(r"^[0-9a-fA-F]{64}$")
 _URL = re.compile(r"^https://\S+$")
 _PUBLIC_LICENSE = frozenset({"metadata_only", "reusable_excerpt", "fulltext_allowed"})
@@ -70,6 +77,8 @@ class SupportResult:
     dropped_reprints: int
     dropped_incomplete: int
     dropped_out_of_window: int
+    dropped_unrelated: int
+    span_missing: tuple[dict[str, object], ...]
     degraded: bool
 
 
@@ -196,6 +205,8 @@ def retrieve_support(
     embedder: Embedder | None = None,
     vector_store_available: bool | None = None,
     limit: int = MAX_EVIDENCE,
+    topic: str | None = None,
+    claim_inputs: Mapping[str, object] | None = None,
 ) -> SupportResult:
     """Retrieve one claim's support set and grade it."""
     prepared = prepare_corpus(records, embedder)
@@ -207,6 +218,8 @@ def retrieve_support(
         clusters=clusters,
         vector_store_available=vector_store_available,
         limit=limit,
+        topic=topic,
+        claim_inputs=claim_inputs,
     )
 
 
@@ -219,6 +232,8 @@ def retrieve_from_corpus(
     clusters: Mapping[str, str] | None = None,
     vector_store_available: bool | None = None,
     limit: int = MAX_EVIDENCE,
+    topic: str | None = None,
+    claim_inputs: Mapping[str, object] | None = None,
 ) -> SupportResult:
     """Grade one I20 result list down to at most ten support hits."""
     found = retrieve(
@@ -237,8 +252,11 @@ def retrieve_from_corpus(
         end = None
     seen: set[str] = set()
     eligible: list[_Hit] = []
+    span_missing: list[dict[str, object]] = []
     incomplete = 0
     out_of_window = 0
+    unrelated = 0
+    checked_inputs = claim_inputs if claim_inputs is not None else {}
     for doc_id in ranked:
         if doc_id in seen:
             continue
@@ -254,6 +272,16 @@ def retrieve_from_corpus(
         if start is not None and end is not None and not (start <= hit.published < end):
             out_of_window += 1
             continue
+        if topic is not None and not evidence_supports_claim(
+            topic,
+            _evidence_text(hit.evidence),
+            checked_inputs,
+        ):
+            unrelated += 1
+            continue
+        if hit.evidence.get("citation_span_missing") is True:
+            span_missing.append(hit.evidence)
+            continue
         eligible.append(hit)
     chosen, reprints = _select(eligible, min(MAX_EVIDENCE, max(0, limit)))
     return SupportResult(
@@ -262,6 +290,8 @@ def retrieve_from_corpus(
         dropped_reprints=reprints,
         dropped_incomplete=incomplete,
         dropped_out_of_window=out_of_window,
+        dropped_unrelated=unrelated,
+        span_missing=tuple(span_missing),
         degraded=found.degraded,
     )
 
@@ -333,9 +363,16 @@ def _evidence_item(
     if family is None or tier is None or published is None or collected is None:
         return None
     spanned = _span(record)
+    span: dict[str, object] | None
+    quote: str
     if spanned is None:
-        return None
-    span, quote = spanned
+        unspanned = _unspanned_excerpt(record)
+        if unspanned is None:
+            return None
+        span = None
+        quote = unspanned
+    else:
+        span, quote = spanned
     source_id, source_record_id = _source_parts(record, record_id)
     canonical = _canonical(record, record_id, clusters)
     payload: dict[str, object] = {
@@ -356,7 +393,10 @@ def _evidence_item(
     except ValidationError:
         return None
     title = record.get("title")
-    payload["citation_span"] = span
+    if span is None:
+        payload["citation_span_missing"] = True
+    else:
+        payload["citation_span"] = span
     payload["source_id"] = source_id
     payload["source_record_id"] = source_record_id
     payload["cluster_id"] = _cluster(record, record_id, clusters)
@@ -367,29 +407,124 @@ def _evidence_item(
     return payload
 
 
+def evidence_supports_claim(
+    topic: str,
+    evidence_text: str,
+    inputs: Mapping[str, object],
+) -> bool:
+    """Return whether ``evidence_text`` meets the claim key-term rule.
+
+    The rule is deterministic and uses the I20 BM25 tokenizer. Topic/entity
+    terms are the tokens of ``topic`` except the generic label ``topic``.
+    Claim key terms are those entity terms plus the tokens of the stored
+    claim inputs (the measured counts and source-family names). Template
+    words and timestamps are not inputs, so they are not key terms.
+
+    Evidence is support only when it contains every topic/entity term and
+    shares at least ``MIN_KEY_TERM_OVERLAP`` key terms. When fewer than two
+    key terms exist, every key term must appear. When the claim has a
+    measurement, the overlap must include one. One shared token, including
+    the topic name alone or a generic word, is not support. Evidence below
+    the overlap is unrelated and does not count toward support or confidence.
+    """
+    entities = _entity_terms(topic)
+    measurements = _measurement_terms(inputs)
+    if not entities:
+        return False
+    evidence_tokens = set(tokenize(evidence_text))
+    if not entities <= evidence_tokens:
+        return False
+    keys = entities | measurements
+    overlap = keys & evidence_tokens
+    needed = MIN_KEY_TERM_OVERLAP if len(keys) >= MIN_KEY_TERM_OVERLAP else len(keys)
+    if len(overlap) < needed:
+        return False
+    if measurements and not (overlap & measurements):
+        return False
+    return True
+
+
+def _entity_terms(topic: str) -> frozenset[str]:
+    return frozenset(token for token in tokenize(topic) if token != "topic")
+
+
+def _measurement_terms(inputs: Mapping[str, object]) -> frozenset[str]:
+    terms: set[str] = set()
+    for value in inputs.values():
+        terms.update(_input_terms(value))
+    terms.discard("topic")
+    return frozenset(terms)
+
+
+def _input_terms(value: object) -> set[str]:
+    if isinstance(value, bool) or value is None:
+        return set()
+    if isinstance(value, int):
+        return set(tokenize(str(value)))
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return set()
+        return set(tokenize(_format_number(value)))
+    if isinstance(value, str):
+        return set(tokenize(value))
+    if isinstance(value, list):
+        terms: set[str] = set()
+        for item in value:
+            terms.update(_input_terms(item))
+        return terms
+    return set()
+
+
+def _evidence_text(item: Mapping[str, object]) -> str:
+    parts: list[str] = []
+    title = item.get("title")
+    excerpt = item.get("normalized_excerpt")
+    if isinstance(title, str) and title:
+        parts.append(title)
+    if isinstance(excerpt, str) and excerpt:
+        parts.append(excerpt)
+    return "\n".join(parts)
+
+
 def _span(record: Mapping[str, object]) -> tuple[dict[str, object], str] | None:
+    """Return the upstream span and its quote.
+
+    A missing or invalid span returns None. This function does not invent a
+    whole-field span.
+    """
     stored = record.get("citation_span")
-    if isinstance(stored, dict):
-        field = stored.get("field")
-        start = stored.get("start")
-        end = stored.get("end")
-        if (
-            isinstance(field, str)
-            and field in _SPAN_FIELDS
-            and isinstance(start, int)
-            and isinstance(end, int)
-            and not isinstance(start, bool)
-            and not isinstance(end, bool)
-        ):
-            source = record.get(field)
-            if isinstance(source, str) and 0 <= start < end <= len(source):
-                quote = source[start:end]
-                if quote:
-                    return {"field": field, "start": start, "end": end}, quote
+    if not isinstance(stored, dict):
+        return None
+    field = stored.get("field")
+    start = stored.get("start")
+    end = stored.get("end")
+    if (
+        not isinstance(field, str)
+        or field not in _SPAN_FIELDS
+        or isinstance(start, bool)
+        or isinstance(end, bool)
+        or not isinstance(start, int)
+        or not isinstance(end, int)
+    ):
+        return None
+    source = record.get(field)
+    if not isinstance(source, str) or not (0 <= start < end <= len(source)):
+        return None
+    quote = source[start:end]
+    if quote == "":
+        return None
+    return {"field": field, "start": start, "end": end}, quote
+
+
+def _unspanned_excerpt(record: Mapping[str, object]) -> str | None:
+    """Return source text so a span-missing item can be identified.
+
+    The text is not a citation span and is not given start and end offsets.
+    """
     for field in _SPAN_FIELDS:
         source = record.get(field)
         if isinstance(source, str) and source:
-            return {"field": field, "start": 0, "end": len(source)}, source
+            return source
     return None
 
 
