@@ -52,5 +52,5 @@ def test_growth_files_have_only_placeholder_urls(name: str) -> None:
     text = _read_growth_file(name)
     for match in HTTP_PATTERN.finditer(text):
         assert PLACEHOLDER_URL_PATTERN.match(text, match.start()), (
-            f"non-placeholder http(s) URL in {name}: {text[match.start():match.start() + 40]!r}"
+            f"non-placeholder http(s) URL in {name}: {text[match.start() : match.start() + 40]!r}"
         )

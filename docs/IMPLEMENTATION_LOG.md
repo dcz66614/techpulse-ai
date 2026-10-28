@@ -577,3 +577,39 @@ $ python -m pytest -q tests/growth
 $ ruff check tests/growth
 All checks passed!
 ```
+
+## T10 Topic clustering and stable topic ids
+- `src/techpulse/trends/cluster.py`: seed aliases assign candidates first. Unseeded records are clustered with average linkage on I10 `HashedNgramEmbedder` vectors (or vectors already produced by that embedder). No model download. Topic id and display name are separate. A stored id is kept when the name changes, and a cluster id is kept when member overlap stays at least half. If at least half of the stored assignments would change, the SQLite dictionary is left unchanged and `cluster_degraded` is set. Fixed seed `0`, join cosine `0.60`.
+- Artifacts go through `ObjectStore` (`LocalObjectStore` under the artifacts root). pyarrow is not installed, so the topic table is `topics.jsonl`. The dictionary is SQLite at `{run_id}/T10/topics.sqlite`.
+- `tests/unit/test_t10_cluster.py` uses `tempfile`. Near-copy grouping is checked against cosine computed from the baseline vectors in the test.
+- `tests/growth/test_growth_docs.py`: one ruff format spacing change in a slice (`match.start() : match.start() + 40`) so `ruff format --check` passes on this tree.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.59ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+122 files already formatted
+
+$ uv run mypy
+Success: no issues found in 77 source files
+
+$ uv run pytest -q
+........................................................................ [  9%]
+........................................................................ [ 19%]
+........................................................................ [ 29%]
+........................................................................ [ 39%]
+........................................................................ [ 49%]
+........................................................................ [ 59%]
+........................................................................ [ 69%]
+........................................................................ [ 79%]
+........................................................................ [ 89%]
+........................................................................ [ 99%]
+......                                                                   [100%]
+726 passed in 11.50s
+```
