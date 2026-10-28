@@ -466,3 +466,61 @@ $ uv run pytest -q
 .............................                                            [100%]
 677 passed in 11.74s
 ```
+
+## I20 Dense and BM25 hybrid retrieval
+- `src/techpulse/index/bm25.py`: pure-Python Okapi BM25 (k1 1.5, b 0.75) with ASCII tokens plus CJK unigrams and bigrams. No extra dependency.
+- `src/techpulse/index/rerank.py`: `Reranker` plus `OverlapReranker`, a deterministic token-overlap baseline. No network call.
+- `src/techpulse/index/hybrid.py`: dense top-100 and BM25 top-100, RRF (k 60) top-50, rerank top-10. Cuts shrink when the corpus is smaller. If vectors are unavailable, retrieval uses BM25 only and sets `retrieval_degraded`. nDCG@10 and Recall@20 are computed from `system_ranking`.
+- Evaluation uses `tests/fixtures/retrieval/labelled.jsonl` (hand-labelled, under 100 KB). The sealed I30 test set was not run. `mvp_threshold_met` is the comparison of those measured fixture means with 0.75 and 0.85. It is not a sealed-test or production claim.
+
+Fixture measurement (`uv run python` on the labelled file, hashed embedder, tempfile, no third-party call):
+
+```text
+status success
+retrieval_degraded False
+high_confidence_blocked False
+mvp_threshold_met True
+ndcg_at_10 {"en": 1.0, "zh": 1.0}
+recall_at_20 {"en": 1.0, "zh": 1.0}
+p95_latency_ms 0.6924999906914309
+cost_usd 0.0
+eval_set hand_labelled_fixture
+q-en-bm25 en ndcg 1.0 recall 1.0 degraded False dense 24 bm25 3 fused 24 reranked 10
+q-en-vec en ndcg 1.0 recall 1.0 degraded False dense 24 bm25 3 fused 24 reranked 10
+q-en-rrf en ndcg 1.0 recall 1.0 degraded False dense 24 bm25 2 fused 24 reranked 10
+q-en-pii en ndcg 1.0 recall 1.0 degraded False dense 24 bm25 2 fused 24 reranked 10
+q-zh-hyb zh ndcg 1.0 recall 1.0 degraded False dense 24 bm25 8 fused 24 reranked 10
+q-zh-idx zh ndcg 1.0 recall 1.0 degraded False dense 24 bm25 8 fused 24 reranked 10
+q-zh-lic zh ndcg 1.0 recall 1.0 degraded False dense 24 bm25 3 fused 24 reranked 10
+q-zh-emb zh ndcg 1.0 recall 1.0 degraded False dense 24 bm25 5 fused 24 reranked 10
+```
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.62ms
+
+$ uv run ruff check .
+Resolved 88 packages in 0.63ms
+All checks passed!
+
+$ uv run ruff format --check .
+110 files already formatted
+
+$ uv run mypy
+Success: no issues found in 70 source files
+
+$ uv run pytest -q
+........................................................................ [ 10%]
+........................................................................ [ 21%]
+........................................................................ [ 31%]
+........................................................................ [ 42%]
+........................................................................ [ 52%]
+........................................................................ [ 63%]
+........................................................................ [ 73%]
+........................................................................ [ 84%]
+........................................................................ [ 94%]
+....................................                                     [100%]
+684 passed in 11.68s
+```

@@ -1,0 +1,32 @@
+{"kind":"doc","source_id":"fixture","source_record_id":"en-bm25-a","language":"en","license_status":"fulltext_allowed","title":"BM25 scores term frequency and inverse document frequency for sparse retrieval.","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"en-bm25-b","language":"en","license_status":"fulltext_allowed","title":"Okapi BM25 is a sparse lexical ranker used beside dense retrieval.","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"en-vec-a","language":"en","license_status":"fulltext_allowed","title":"pgvector stores embedding columns and a cosine HNSW index.","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"en-vec-b","language":"en","license_status":"fulltext_allowed","title":"A vector index keeps the model id, the model version, and the chunk sha256.","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"en-rrf-a","language":"en","license_status":"fulltext_allowed","title":"Reciprocal rank fusion merges the dense list and the BM25 list.","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"en-rrf-b","language":"en","license_status":"fulltext_allowed","title":"RRF fusion keeps a stable order before the reranker cuts the list.","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"en-pii-a","language":"en","license_status":"fulltext_allowed","title":"Sanitized chunks enter the index only after PII filtering passes.","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"en-pii-b","language":"en","license_status":"fulltext_allowed","title":"PII secrets and uncleaned HTML must not be embedded.","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"en-cook","language":"en","license_status":"fulltext_allowed","title":"Bake bread with flour, water, salt, and a long ferment.","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"en-weather","language":"en","license_status":"fulltext_allowed","title":"Coastal weather brings rain, wind, and a falling barometer.","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"en-music","language":"en","license_status":"fulltext_allowed","title":"The quartet rehearses a string arrangement in the small hall.","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"en-garden","language":"en","license_status":"fulltext_allowed","title":"Tomato seedlings need sun, water, and a deep pot.","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"zh-hyb-a","language":"zh","license_status":"fulltext_allowed","title":"混合检索把稠密向量和稀疏结果融合后再重排序。","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"zh-hyb-b","language":"zh","license_status":"fulltext_allowed","title":"混合检索的重排序只保留得分最高的十条候选。","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"zh-idx-a","language":"zh","license_status":"fulltext_allowed","title":"向量索引版本记录模型标识、模型版本和内容哈希。","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"zh-idx-b","language":"zh","license_status":"fulltext_allowed","title":"索引版本清单写入本地库，向量列仍是 Postgres 的目标。","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"zh-lic-a","language":"zh","license_status":"fulltext_allowed","title":"开源许可证允许时才把摘录送进索引。","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"zh-lic-b","language":"zh","license_status":"fulltext_allowed","title":"未知许可和禁止许可的正文不能进入索引。","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"zh-emb-a","language":"zh","license_status":"fulltext_allowed","title":"字符哈希嵌入用字符片段的词频向量，不下载模型权重。","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"zh-emb-b","language":"zh","license_status":"fulltext_allowed","title":"哈希嵌入对中文和英文都生成固定维度的向量。","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"zh-cook","language":"zh","license_status":"fulltext_allowed","title":"发酵面包需要面粉、水和足够的醒发时间。","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"zh-weather","language":"zh","license_status":"fulltext_allowed","title":"沿海天气带来降雨、大风和下降的气压。","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"zh-music","language":"zh","license_status":"fulltext_allowed","title":"四重奏在小厅排练一首弦乐作品。","abstract_or_excerpt":""}
+{"kind":"doc","source_id":"fixture","source_record_id":"zh-garden","language":"zh","license_status":"fulltext_allowed","title":"番茄幼苗需要阳光、水分和深厚的花盆。","abstract_or_excerpt":""}
+{"kind":"query","query_id":"q-en-bm25","language":"en","query":"bm25 sparse retrieval","relevant":["en-bm25-a","en-bm25-b"]}
+{"kind":"query","query_id":"q-en-vec","language":"en","query":"pgvector cosine index","relevant":["en-vec-a"]}
+{"kind":"query","query_id":"q-en-rrf","language":"en","query":"reciprocal rank fusion","relevant":["en-rrf-a","en-rrf-b"]}
+{"kind":"query","query_id":"q-en-pii","language":"en","query":"sanitized pii secrets","relevant":["en-pii-a","en-pii-b"]}
+{"kind":"query","query_id":"q-zh-hyb","language":"zh","query":"混合检索重排序","relevant":["zh-hyb-a","zh-hyb-b"]}
+{"kind":"query","query_id":"q-zh-idx","language":"zh","query":"向量索引版本","relevant":["zh-idx-a","zh-idx-b"]}
+{"kind":"query","query_id":"q-zh-lic","language":"zh","query":"开源许可证摘录","relevant":["zh-lic-a"]}
+{"kind":"query","query_id":"q-zh-emb","language":"zh","query":"字符哈希嵌入","relevant":["zh-emb-a","zh-emb-b"]}
