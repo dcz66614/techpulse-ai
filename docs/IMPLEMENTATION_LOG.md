@@ -343,3 +343,30 @@ $ uv run pytest -q
 ## QBfix Red-team review fixes
 - Per-case egress checks now extract every URL/host from each red-team fixture (src/techpulse/redteam.py harness) and replay them through check_egress, replacing the hard-coded URL list; added scripts/run_redteam.py writing artifacts/<run_id>/Q20/{redteam,manifest,metrics}.json (real run: 160/160 cases pass, 1330 egress checks blocked, 330 forbidden tool calls denied, 0 secrets leaked) and docs/security_redteam.md. No S20 guard code modified.
 - Real final output: `uv lock --check` -> `Resolved 88 packages in 0.85ms`; `uv run ruff check .` -> `All checks passed!`; `uv run ruff format --check .` -> `91 files already formatted`; `uv run mypy` -> `Success: no issues found in 62 source files`; `uv run pytest -q` -> `651 passed in 8.19s`.
+
+## D21 PII redaction and deletion map
+- `src/techpulse/governance/pii.py`: replaces phone, email, id-document, token, and password spans with `[REDACTED]` and does not keep the matched text. Contact fields (email, phone, username, password, token, and the same) are dropped. Dedup names (`author`, `authors`, `name`, `display_name`, `full_name`) are stored only as HMAC-SHA256 in `name_hmacs`. The key is `TECHPULSE_PII_HMAC_KEY` from the process environment. The module does not open a `.env` file. Embedding input is the redacted title and excerpt. If a pattern is still present, the run is `fatal_error`, the text is not stored, `ops_notice.json` is written, and `run_guard.index_isolated` is set.
+- SQLite table `deletion_map` records `source_id`, `source_record_id`, `chunk_id`, `chunk_uri`, `vector_id`, `vector_uri`, `report_id`, `report_uri`. `locate_derived` returns every row for a source id or source record id. Chunk and vector bytes go through the D10 `ObjectStore`. `LocalObjectStore` writes under the artifacts root. There is no S3 client and no Postgres connection. pyarrow is not installed, so the sanitized file is `sanitized.jsonl` and the manifest note says so.
+- `docs/deletion_map.md` describes the chain. Tests use `tempfile` directories, `tests/fixtures/fake_secret_sample.txt`, and the email in `tests/fixtures/github/repository.json`. No live HTTP.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.71ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+102 files already formatted
+
+$ uv run mypy
+Success: no issues found in 66 source files
+
+$ uv run pytest -q
+........................................................................ [ 45%]
+........................................................................ [ 91%]
+..............                                                           [100%]
+158 passed in 8.30s
+```
