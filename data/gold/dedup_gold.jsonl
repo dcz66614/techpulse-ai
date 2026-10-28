@@ -1,0 +1,12 @@
+{"source_id":"crossref","source_record_id":"cr1","title":"Efficient Neural Retrieval","doi":"https://doi.org/10.1000/XYZ","cluster":"paper-a"}
+{"source_id":"openalex","source_record_id":"oa1","title":"Efficient neural retrieval","doi":"10.1000/xyz","cluster":"paper-a"}
+{"source_id":"arxiv","source_record_id":"ax1","title":"Learning with Limited Labels","arxiv_id":"arXiv:2401.12345v2","cluster":"paper-b"}
+{"source_id":"crossref","source_record_id":"cr2","title":"Learning with Limited Labels","arxiv_id":"2401.12345","cluster":"paper-b"}
+{"source_id":"github","source_record_id":"gh1","title":"Project Atlas","repo_id":"https://github.com/Example/Atlas","cluster":"repo-a"}
+{"source_id":"rss","source_record_id":"rss1","title":"Project Atlas","repo_id":"example/atlas","cluster":"repo-a"}
+{"source_id":"crossref","source_record_id":"cr3","title":"A Study of Graph Representations for Search","cluster":"paper-c"}
+{"source_id":"arxiv","source_record_id":"ax2","title":"A study of graph representations for search","cluster":"paper-c"}
+{"source_id":"crossref","source_record_id":"cr4","title":"Robust Transformers","doi":"10.1000/robust-a","cluster":"paper-d"}
+{"source_id":"arxiv","source_record_id":"ax3","title":"Robust Transformers","doi":"10.1000/robust-b","cluster":"paper-e"}
+{"source_id":"crossref","source_record_id":"cr5","title":"Sparse Attention for Language Models","cluster":"paper-f"}
+{"source_id":"arxiv","source_record_id":"ax4","title":"Vision Systems for Autonomous Robots","cluster":"paper-g"}

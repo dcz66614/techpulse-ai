@@ -354,6 +354,14 @@ Real check output:
 ```text
 $ uv lock --check
 Resolved 88 packages in 0.71ms
+## D30 Cross-source deduplication and near-duplicate merge
+- `src/techpulse/normalize/dedup.py`: normalises DOI, arXiv id, and GitHub repo id (stable numeric id before owner/name), then the source-local record id. Text matching uses a title fingerprint and rapidfuzz token-sort ratio at 95. Conflicting external ids are never forced together; they stay separate with `unresolved=true` and an `unresolved` candidate. Every input row is kept, with `canonical_id` and the sorted `source_record_ids` needed to reverse a merge. `run_dedup` writes `artifacts/{run_id}/D30/{dedup.jsonl,manifest.json,metrics.json}` through the `ObjectStore` interface; pyarrow is absent, so the output is JSONL with a manifest note.
+- `data/gold/dedup_gold.jsonl` has 12 hand-labelled rows. `tests/unit/test_dedup.py` measures pairwise precision/recall against it without hard-coding the score; the real result is `precision=1.0000 recall=1.0000 TP=4 FP=0 FN=0`. Other tests cover identifier priority, reversible merging, source-id fallback, conflicting-id unresolved handling, and artifacts. No network, no clean.py/PII changes.
+- Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.61ms
 
 $ uv run ruff check .
 All checks passed!
@@ -369,4 +377,11 @@ $ uv run pytest -q
 ........................................................................ [ 91%]
 ..............                                                           [100%]
 158 passed in 8.30s
+101 files already formatted
+
+$ uv run mypy
+Success: no issues found in 69 source files
+
+$ uv run pytest -q
+676 passed in 10.34s
 ```
