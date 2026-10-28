@@ -857,6 +857,41 @@ $ uv run pytest -q
 794 passed in 12.37s
 ```
 
+## Q10 Fact, citation, license, and format QA
+- `src/techpulse/reports/qa.py`: programmatic checks of the R10 draft against the E10 claim-to-evidence mapping, stored feature numbers and dates, and stored raw records or snapshots. No model and no network. Citation coverage must be at least 95%. URL traceability must be 100% of the displayed public claims. Numeric and date consistency must be at least 98%. Unknown or blocked license releases must be 0. The D21 detector must find no PII in the draft. `qa_pass` is signed only when every check passes. A failure is routed to R10, E10, or D21, and the third failure is marked for human review. `LocalObjectStore` writes `qa_manifest.json`, `manifest.json`, and `metrics.json`. SQLite stores the run, checks, and blockers. Evidence objects are not written.
+- `tests/unit/test_q10_qa.py`: a passing draft, each blocking reason, the 95% citation and 98% numeric thresholds, artifact and SQLite output, and unchanged evidence bytes. Tests use `tempfile`. The sealed retrieval test set was not used.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.96ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+135 files already formatted
+
+$ uv run mypy
+Success: no issues found in 85 source files
+
+$ uv run pytest -q
+........................................................................ [  8%]
+........................................................................ [ 17%]
+........................................................................ [ 26%]
+........................................................................ [ 35%]
+........................................................................ [ 44%]
+........................................................................ [ 53%]
+........................................................................ [ 62%]
+........................................................................ [ 71%]
+........................................................................ [ 80%]
+........................................................................ [ 88%]
+........................................................................ [ 97%]
+..................                                                       [100%]
+810 passed in 27.24s
+```
+
 ## R10fix Ignore evidence ids missing from the pack
 - `src/techpulse/reports/draft.py`: an evidence id counts only when an evidence item in the pack carries it. A claim that cites an id absent from the pack, such as `ev_not_in_evidence`, does not turn an unchanged evidence set into `success`. That claim is not stated as a fact. It is recorded as an omission with reason `evidence_not_in_pack`.
 - `tests/unit/test_r10_draft.py`: a supported claim and a mixed claim that cite `ev_not_in_evidence` stay `no_material_update` against the previous evidence ids, and the open draft flags both claims. The sealed retrieval test set was not used.
