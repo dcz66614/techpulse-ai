@@ -1,0 +1,18 @@
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <title>arXiv Query: over the API total</title>
+  <id>https://export.arxiv.org/api/query</id>
+  <opensearch:totalResults>30001</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <opensearch:itemsPerPage>1</opensearch:itemsPerPage>
+  <entry>
+    <id>https://arxiv.org/abs/2401.00999v1</id>
+    <title>Too many hits</title>
+    <summary>This entry must not be stored when the result window is over the API limit.</summary>
+    <published>2024-01-15T00:00:00Z</published>
+    <updated>2024-01-15T00:00:00Z</updated>
+    <author><name>Ada Example</name></author>
+    <arxiv:primary_category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <link title="pdf" href="https://arxiv.org/pdf/2401.00999v1" rel="related" type="application/pdf"/>
+  </entry>
+</feed>

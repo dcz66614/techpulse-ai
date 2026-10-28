@@ -1,0 +1,31 @@
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <title>arXiv Query: search_query=cat:cs.IR</title>
+  <id>https://export.arxiv.org/api/query</id>
+  <opensearch:totalResults>3</opensearch:totalResults>
+  <opensearch:startIndex>2</opensearch:startIndex>
+  <opensearch:itemsPerPage>2</opensearch:itemsPerPage>
+  <entry>
+    <id>https://arxiv.org/abs/2401.00002v1</id>
+    <title>Neighbor indexes for passage search</title>
+    <summary>Passage search with a small neighbor index.</summary>
+    <published>2024-01-11T08:30:00Z</published>
+    <updated>2024-01-11T08:30:00Z</updated>
+    <author><name>Lin Query</name></author>
+    <arxiv:primary_category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <link href="https://arxiv.org/abs/2401.00002v1" rel="alternate" type="text/html"/>
+    <link title="pdf" href="https://arxiv.org/pdf/2401.00002v1" rel="related" type="application/pdf"/>
+  </entry>
+  <entry>
+    <id>https://arxiv.org/abs/2401.00003v1</id>
+    <title>Late interaction over titles</title>
+    <summary>Titles carry enough signal for a late-interaction baseline.</summary>
+    <published>2024-01-12T09:00:00Z</published>
+    <updated>2024-01-12T09:00:00Z</updated>
+    <author><name>Ned Index</name></author>
+    <arxiv:primary_category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <link href="https://arxiv.org/abs/2401.00003v1" rel="alternate" type="text/html"/>
+    <link title="pdf" href="https://arxiv.org/pdf/2401.00003v1" rel="related" type="application/pdf"/>
+  </entry>
+</feed>

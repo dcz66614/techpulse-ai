@@ -222,3 +222,28 @@ $ uv run pytest -q
 ...........................................                              [100%]
 115 passed in 3.82s
 ```
+
+## C12 arXiv collector
+- `src/techpulse/collectors/arxiv.py`: GET `https://export.arxiv.org/api/query` (Atom only) with the registry User-Agent. Each request waits at least three seconds. Records keep the arXiv id, version, categories, and dates. A new version is a new row; the older provenance row stays. PDF, source, and HTML links in the feed are not requested. `max_results` is capped at 2000. A `totalResults` above 30000 is policy_blocked and stores nothing. 429 waits for Retry-After. A timeout is retryable_error and does not advance the watermark.
+- Fixtures under `tests/fixtures/arxiv/`. No live HTTP.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.67ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+88 files already formatted
+
+$ uv run mypy
+Success: no issues found in 57 source files
+
+$ uv run pytest -q
+........................................................................ [ 56%]
+.......................................................                  [100%]
+127 passed in 6.76s
+```

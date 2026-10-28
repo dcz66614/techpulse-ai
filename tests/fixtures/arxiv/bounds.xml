@@ -1,0 +1,51 @@
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <title>arXiv Query: time bounds</title>
+  <id>https://export.arxiv.org/api/query</id>
+  <opensearch:totalResults>4</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <opensearch:itemsPerPage>4</opensearch:itemsPerPage>
+  <entry>
+    <id>https://arxiv.org/abs/2401.00001v1</id>
+    <title>Before the window</title>
+    <summary>Published one second before the window opens.</summary>
+    <published>2023-12-31T23:59:59Z</published>
+    <updated>2023-12-31T23:59:59Z</updated>
+    <author><name>Ada Example</name></author>
+    <arxiv:primary_category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <link title="pdf" href="https://arxiv.org/pdf/2401.00001v1" rel="related" type="application/pdf"/>
+  </entry>
+  <entry>
+    <id>https://arxiv.org/abs/2401.00002v1</id>
+    <title>At the start</title>
+    <summary>Published on the inclusive start instant.</summary>
+    <published>2024-01-01T00:00:00Z</published>
+    <updated>2024-01-01T00:00:00Z</updated>
+    <author><name>Lin Query</name></author>
+    <arxiv:primary_category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <link title="pdf" href="https://arxiv.org/pdf/2401.00002v1" rel="related" type="application/pdf"/>
+  </entry>
+  <entry>
+    <id>https://arxiv.org/abs/2401.00003v1</id>
+    <title>Last included instant</title>
+    <summary>Published one second before the window closes.</summary>
+    <published>2024-01-31T23:59:59Z</published>
+    <updated>2024-01-31T23:59:59Z</updated>
+    <author><name>Ned Index</name></author>
+    <arxiv:primary_category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <link title="pdf" href="https://arxiv.org/pdf/2401.00003v1" rel="related" type="application/pdf"/>
+  </entry>
+  <entry>
+    <id>https://arxiv.org/abs/2401.00004v1</id>
+    <title>At the end</title>
+    <summary>Published on the exclusive end instant.</summary>
+    <published>2024-02-01T00:00:00Z</published>
+    <updated>2024-02-01T00:00:00Z</updated>
+    <author><name>Ora Bound</name></author>
+    <arxiv:primary_category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <link title="pdf" href="https://arxiv.org/pdf/2401.00004v1" rel="related" type="application/pdf"/>
+  </entry>
+</feed>

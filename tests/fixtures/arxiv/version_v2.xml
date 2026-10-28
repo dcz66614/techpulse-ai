@@ -1,0 +1,21 @@
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <title>arXiv Query: version two</title>
+  <id>https://export.arxiv.org/api/query</id>
+  <opensearch:totalResults>1</opensearch:totalResults>
+  <opensearch:startIndex>0</opensearch:startIndex>
+  <opensearch:itemsPerPage>1</opensearch:itemsPerPage>
+  <entry>
+    <id>https://arxiv.org/abs/2401.00010v2</id>
+    <title>Sparse retrieval, version two</title>
+    <summary>Replacement abstract for the second version.</summary>
+    <published>2024-01-05T00:00:00Z</published>
+    <updated>2024-02-02T15:00:00Z</updated>
+    <author><name>Ada Example</name></author>
+    <author><name>Lin Query</name></author>
+    <arxiv:primary_category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.IR" scheme="http://arxiv.org/schemas/atom"/>
+    <category term="cs.LG" scheme="http://arxiv.org/schemas/atom"/>
+    <link href="https://arxiv.org/html/2401.00010v2" rel="related" type="text/html"/>
+    <link title="pdf" href="https://arxiv.org/pdf/2401.00010v2" rel="related" type="application/pdf"/>
+  </entry>
+</feed>
