@@ -1,0 +1,20 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "status": "ok",
+    "message-type": "work-list",
+    "message": {
+      "next-cursor": null,
+      "items": [
+        {
+          "DOI": "10.5555/rate.2",
+          "title": ["Second page after the pool interval"],
+          "type": "journal-article",
+          "published": {"date-parts": [[2024, 1, 6]]},
+          "language": "en"
+        }
+      ]
+    }
+  }
+}

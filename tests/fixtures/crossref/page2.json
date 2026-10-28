@@ -1,0 +1,31 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "status": "ok",
+    "message-type": "work-list",
+    "message": {
+      "next-cursor": null,
+      "total-results": 3,
+      "items": [
+        {
+          "DOI": "https://dx.doi.org/10.5555/abc.1",
+          "title": ["Duplicate page copy of the case-folding paper"],
+          "type": "journal-article",
+          "published": {"date-parts": [[2024, 3, 2]]},
+          "language": "en"
+        },
+        {
+          "DOI": "doi:10.5555/GHI.3",
+          "title": ["License URLs are metadata"],
+          "type": "posted-content",
+          "issued": {"date-parts": [[2024, 7, 19]]},
+          "link": [{"URL": "https://doi.org/10.5555/ghi.3"}],
+          "license": [{"URL": "https://creativecommons.org/publicdomain/zero/1.0/"}],
+          "abstract": "The license field is a URL, not the full text.",
+          "language": "en"
+        }
+      ]
+    }
+  }
+}

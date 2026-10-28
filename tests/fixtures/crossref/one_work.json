@@ -1,0 +1,24 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "status": "ok",
+    "message-type": "work-list",
+    "message": {
+      "next-cursor": null,
+      "total-results": 1,
+      "items": [
+        {
+          "DOI": "10.5555/AbC.1",
+          "title": ["Case Folding for Bibliographic Identifiers"],
+          "type": "journal-article",
+          "published": {"date-parts": [[2024, 3, 2]]},
+          "link": [{"URL": "https://doi.org/10.5555/AbC.1"}],
+          "license": [{"URL": "https://creativecommons.org/licenses/by/4.0/"}],
+          "abstract": "<jats:p>Identifiers should compare independent of case.</jats:p>",
+          "language": "en"
+        }
+      ]
+    }
+  }
+}

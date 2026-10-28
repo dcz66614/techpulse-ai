@@ -1,0 +1,34 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "status": "ok",
+    "message-type": "work-list",
+    "message": {
+      "next-cursor": "cr-page-2",
+      "total-results": 3,
+      "items": [
+        {
+          "DOI": "10.5555/AbC.1",
+          "title": ["Case Folding for Bibliographic Identifiers"],
+          "type": "journal-article",
+          "published": {"date-parts": [[2024, 3, 2]]},
+          "link": [{"URL": "https://doi.org/10.5555/AbC.1", "content-type": "unspecified"}],
+          "license": [{"URL": "https://creativecommons.org/licenses/by/4.0/"}],
+          "abstract": "<jats:p>Identifiers should compare independent of case.</jats:p>",
+          "language": "en"
+        },
+        {
+          "DOI": "https://doi.org/10.5555/DeF.2",
+          "title": ["Link Rot in the Scholarly Record"],
+          "type": "journal-article",
+          "published": {"date-parts": [[2023, 11, 9]]},
+          "link": [{"URL": "https://doi.org/10.5555/def.2"}],
+          "license": [{"URL": "https://creativecommons.org/licenses/by-nc/4.0/"}],
+          "abstract": "<jats:p>Landing pages move.</jats:p>",
+          "language": "en"
+        }
+      ]
+    }
+  }
+}

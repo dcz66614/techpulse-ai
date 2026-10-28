@@ -197,3 +197,28 @@ $ uv run pytest -q
 .............................                                            [100%]
 101 passed in 3.54s
 ```
+
+## C11 Crossref collector
+- `src/techpulse/collectors/crossref.py`: cursor-paged GET of `https://api.crossref.org/works` with the registry User-Agent, Accept, and mailto. DOIs are lower-cased and `doi:` / `doi.org` / `dx.doi.org` prefixes are removed. The same DOI on another page is not stored again. Provenance keeps DOI, publication date, type, title, link URLs, and license URLs. `rows` is capped at the registry maximum of 1000. 429 waits for Retry-After. Other network errors retry at most twice. 403 is policy_blocked and leaves the watermark on the last successful page.
+- Fixtures under `tests/fixtures/crossref/`. No live HTTP.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.67ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+87 files already formatted
+
+$ uv run mypy
+Success: no issues found in 56 source files
+
+$ uv run pytest -q
+........................................................................ [ 62%]
+...........................................                              [100%]
+115 passed in 3.82s
+```

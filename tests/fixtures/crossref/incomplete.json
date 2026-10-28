@@ -1,0 +1,20 @@
+{
+  "status": 200,
+  "headers": {"Content-Type": "application/json"},
+  "body": {
+    "status": "ok",
+    "message-type": "work-list",
+    "message": {
+      "next-cursor": null,
+      "items": [
+        {
+          "DOI": "10.5555/year.4",
+          "title": ["Year only deposit"],
+          "type": "journal-article",
+          "issued": {"date-parts": [[2024]]},
+          "language": "en"
+        }
+      ]
+    }
+  }
+}

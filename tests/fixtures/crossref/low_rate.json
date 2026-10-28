@@ -1,0 +1,24 @@
+{
+  "status": 200,
+  "headers": {
+    "Content-Type": "application/json",
+    "X-Rate-Limit-Limit": "1",
+    "X-Rate-Limit-Interval": "2s"
+  },
+  "body": {
+    "status": "ok",
+    "message-type": "work-list",
+    "message": {
+      "next-cursor": "after",
+      "items": [
+        {
+          "DOI": "10.5555/rate.1",
+          "title": ["First page under a tight pool"],
+          "type": "journal-article",
+          "published": {"date-parts": [[2024, 1, 5]]},
+          "language": "en"
+        }
+      ]
+    }
+  }
+}
