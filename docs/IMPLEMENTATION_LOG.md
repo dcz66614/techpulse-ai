@@ -821,3 +821,38 @@ $ uv run pytest -q
 ................................................................         [100%]
 784 passed in 11.92s
 ```
+
+## R10 Daily and weekly Markdown draft
+- `src/techpulse/reports/draft.py`: Chinese daily/weekly draft from the E10 pack, E20 contradictions, and T30 candidates. Templates only. No model and no paid API. A fact copies stored claim inputs and cites schema-valid evidence ids. Contradicted, QA-disputed, and insufficient claims are not stated as facts. An inference is labelled `hypothesis`. Template version `template-v1`. Prompt/model version `template-v1/none`. Unchanged evidence ids, or nothing that can be cited, return `no_material_update`. `LocalObjectStore` writes `report_claims.json`, `manifest.json`, and `metrics.json`. The Markdown file is `reports/draft/{run_id}/weekly.md` (or `daily.md`). SQLite stores the claim-to-evidence rows.
+- `tests/unit/test_r10_draft.py`: evidence-id mapping, `no_material_update` when ids are unchanged and when evidence is insufficient, contradicted and numeric-disagreement cases, artifact and SQLite output. Tests use `tempfile`. The sealed retrieval test set was not used.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.64ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+133 files already formatted
+
+$ uv run mypy
+Success: no issues found in 84 source files
+
+$ uv run pytest -q
+........................................................................ [  9%]
+........................................................................ [ 18%]
+........................................................................ [ 27%]
+........................................................................ [ 36%]
+........................................................................ [ 45%]
+........................................................................ [ 54%]
+........................................................................ [ 63%]
+........................................................................ [ 72%]
+........................................................................ [ 81%]
+........................................................................ [ 90%]
+........................................................................ [ 99%]
+..                                                                       [100%]
+794 passed in 12.37s
+```
