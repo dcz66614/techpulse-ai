@@ -1309,3 +1309,52 @@ $ uv run pytest -q -m capacity tests/evaluation/test_q30_drills.py
 .                                                                        [100%]
 1 passed, 1 deselected in 2.16s
 ```
+
+
+## O40 Backup, restore, and deletion drill
+
+- `src/techpulse/ops/backup.py`: SQLite backup and restore for databases, source policy decision snapshots (`docs/decisions/source_policy_*.md` and `config/policy.yaml`, `config/source_registry.yaml`), and manifests (`artifacts/**/manifest.json`). Target production PostgreSQL `pg_dump` and `pg_restore` commands are documented as targets only.
+- `RestoreCheck` and `backup_restore` from `techpulse.qa.drills` are reused; row counts, table totals, and file SHA-256 digests are verified following restoration into an isolated directory.
+- `scripts/backup.py` and `scripts/restore.py`: cross-platform CLI tools for running dry-run validations, creating backups, and restoring with checksum verification. Thin POSIX wrappers `scripts/backup.sh` and `scripts/restore.sh` are provided.
+- Deletion drill: operates strictly on synthetic test data (`drill-*` / `synthetic-*`), ensuring real customer data is never touched. Purges raw text from SQLite `raw_records` and staged NDJSON/files, chunk objects, vector objects and `chunk_vectors` / `chunk_vectors_staging` index tables, and affected `published_reports` caches using the D21 deletion map (`deletion_map`). Re-querying I20 hybrid retrieval verifies that the purged sensitive record cannot be retrieved across dense, BM25, fused, or reranked results.
+- `docs/deletion_map.md`: documented the retention policy (180-day raw cache limit, license retention tiers `fulltext_allowed`, `reusable_excerpt`, `metadata_only`, `withheld`, permanent report archives), deletion drill workflow, and Postgres target commands.
+- `artifacts/o40-20261028T194200Z/O40/`: on disk and gitignored; status `success` / `pass`, `restore_match` true, `database_sha256_match` true, `sensitive_record_retrievable` false, `real_customer_data_touched` false.
+- Tests: `tests/unit/test_o40_backup.py` and `tests/integration/test_o40_drill.py`.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.71ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+166 files already formatted
+
+$ uv run mypy
+Success: no issues found in 99 source files
+
+$ uv run pytest -q
+........................................................................ [  8%]
+........................................................................ [ 16%]
+........................................................................ [ 24%]
+........................................................................ [ 32%]
+........................................................................ [ 40%]
+........................................................................ [ 48%]
+........................................................................ [ 56%]
+........................................................................ [ 64%]
+........................................................................ [ 72%]
+........................................................................ [ 80%]
+........................................................................ [ 88%]
+........................................................................ [ 96%]
+....................................                                     [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+900 passed, 1 deselected, 1 warning in 23.53s
+```
