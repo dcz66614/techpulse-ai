@@ -42,7 +42,10 @@ select = ["E", "F", "I", "B", "UP"]
 minversion = "8.0"
 testpaths = ["tests", "web/tests"]
 pythonpath = ["."]
-addopts = "-ra"
+addopts = "-ra -m 'not capacity'"
+markers = [
+    "capacity: one-day replay of 10k synthetic records; excluded from the default suite",
+]
 asyncio_default_fixture_loop_scope = "function"
 
 [tool.mypy]

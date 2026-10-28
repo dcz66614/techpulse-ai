@@ -1244,12 +1244,20 @@ $ uv run pytest -q
 - `src/techpulse/workflows/orchestrator.py`: a small hook records the day's spend on the orchestrator SQLite file. At $25 the runtime still pauses with reason `daily budget`.
 - `tests/unit/test_o30_metrics.py` uses `tempfile`. The sealed retrieval set was not used. No `.env` was read. No third-party API was called.
 - `artifacts/o30-20261028T185341Z/O30/` is on disk and gitignored. The $20 probe is `degraded` with the circuit closed. The $25 probe is `stopped` with the circuit open and non-P0 LLM off. `network_calls` is 0. `status` is `success`.
+## Q30 Regression, capacity, cost, and DR drills
+
+- `src/techpulse/qa/drills.py`: builds one UTC day of synthetic raw records in memory and runs them through `LocalOrchestrator` on `techpulse-daily-v1`. D10 archives the batch with `archive_collector_ndjson`. Later steps are templates. Stored activity results have no `tokens` field, so the token total is 0. `cost_usd` is the sum of stored `cost_usd` values, which is 0.
+- The drill injects one HTTP 429 on C10, one `sqlite3.OperationalError` before the archive commit, and one object-store `OSError`. The disconnect pauses the scheduler with no public report. Resume finishes the slot. The same day is replayed with `simulate`. Replay inserted 0 records, called 0 activities, and left the public report count at 1.
+- Restore is a byte copy of the closed orchestrator SQLite file, the catalog SQLite file, and the artifact tree. Row counts and sha256 are compared after the copy. O40 still owns the scheduled backup scripts.
+- `tests/evaluation/test_q30_drills.py`: `FAST_N` is 40 and runs in the default suite. The 10k replay is marked `capacity`. `pyproject.toml` adds that marker and keeps it out of the default `pytest` addopts. No fixture file is committed. The sealed I30 retrieval set was not used. `src/techpulse/ops` was not changed.
+- `artifacts/1ff14765-e96c-5536-bcd1-d05dc6e1ce23/Q30/` is on disk and gitignored. Slot `2026-10-27T08:00:00Z`. `record_count` 10000, `raw_rows` 10000, `orchestrator_rows` 20001, `tokens` 0, `cost_usd` 0, `budget_spent_usd` 0. Faulted-pass wall latency `1.47416019999946` seconds. Replay latency `0.005012900001020171` seconds. Retry extras 3. ManualClock sleeps were 30s then 30s. `retry_backoff_seconds` 60. `network_calls` 0. `duplicate_public_reports` 0. Restore match is true (`database_rows` 40194, `artifact_files` 6).
 
 Real check output:
 
 ```text
 $ uv lock --check
 Resolved 88 packages in 0.88ms
+Resolved 88 packages in 0.78ms
 
 $ uv run ruff check .
 All checks passed!
@@ -1259,6 +1267,10 @@ $ uv run ruff format --check .
 
 $ uv run mypy
 Success: no issues found in 94 source files
+150 files already formatted
+
+$ uv run mypy
+Success: no issues found in 96 source files
 
 $ uv run pytest -q
 ........................................................................ [  8%]
@@ -1276,9 +1288,24 @@ $ uv run pytest -q
 ..........................                                               [100%]
 ============================== warnings summary ===============================
 .venv\Lib\site-packages\fastapi\testclient.py:1
+........................................................................ [ 49%]
+........................................................................ [ 57%]
+........................................................................ [ 65%]
+........................................................................ [ 73%]
+........................................................................ [ 81%]
+........................................................................ [ 90%]
+........................................................................ [ 98%]
+................                                                         [100%]
+============================== warnings summary ===============================
+..\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1
   C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
     from starlette.testclient import TestClient as TestClient  # noqa
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 890 passed, 1 warning in 19.93s
+880 passed, 1 deselected, 1 warning in 55.20s
+
+$ uv run pytest -q -m capacity tests/evaluation/test_q30_drills.py
+.                                                                        [100%]
+1 passed, 1 deselected in 2.16s
 ```
