@@ -310,3 +310,29 @@ $ uv run pytest -q
 ....                                                                     [100%]
 148 passed in 6.33s
 ```
+
+## D20 Cleaning and licence marking
+- `src/techpulse/normalize/clean.py`: strips HTML, control characters, and invalid Unicode offline, normalises timestamps to UTC `Z` and language to a BCP-47 primary subtag (else `und`). `metadata_only` keeps no body, `reusable_excerpt` keeps at most 280 characters, `fulltext_allowed` keeps the cleaned text. `blocked` and `unknown` bodies are withheld and are not written to the clean file or the quarantine file. Bad rows go to `quarantine.jsonl` with `extraction_failure_reason`. A run is `fatal_error` when extractable-body success is below 97% or required-field completeness is below 98%. A declared SHA-256 mismatch is fatal and writes no clean file. pyarrow is not installed, so the clean output is `clean.jsonl` and the manifest note is `pyarrow is not installed; wrote clean.jsonl instead of clean.parquet`.
+- `clean_from_manifest` reads a D10 raw manifest and cleans only those lines. Tests use the OpenAlex, Crossref, GitHub, and Hacker News collector fixtures. No live HTTP. Outputs are under a `tempfile` directory.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.68ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+99 files already formatted
+
+$ uv run mypy
+Success: no issues found in 65 source files
+
+$ uv run pytest -q
+........................................................................ [ 47%]
+........................................................................ [ 94%]
+.........                                                                [100%]
+153 passed in 8.06s
+```
