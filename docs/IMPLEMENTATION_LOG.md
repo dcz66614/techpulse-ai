@@ -930,6 +930,9 @@ $ uv run pytest -q
 ## Q10fix Block unclaimed draft facts
 - `src/techpulse/reports/qa.py`: factual sentences in the R10 sections 趋势, 变化, and 反证 must appear in a `report_claims.json` claim that cites an evidence id. The header, 方法, 未知项, 链接目录, and lines labelled `hypothesis` are not scanned. An uncovered sentence is a citation miss. An uncovered number or date is a numeric/date miss. Either one adds a blocking `unclaimed_fact` routed to R10. The forward format check still requires each claim to appear in the draft.
 - `tests/unit/test_q10_qa.py`: the clean sectioned R10 fixture passes, including a hypothesis line, the method, the unknowns, and the link directory. An injected sentence fails citation coverage. An injected number and date fail numeric/date consistency. The sealed retrieval test set was not used.
+## R20 Topic dossiers and evidence cards
+- `src/techpulse/reports/render.py`: deterministic topic dossiers from the T30 trend rows, D40 entities, the E10 evidence pack, the E20 contradiction review, and the R10 draft. Template `render-v1`. Prompt/model version `render-v1/none`. Each topic gets a summary, 7-day and 28-day chart series, support and contrary cards, and a timeline. Markdown and JSON share `source_version`, the sha256 of the sorted input digests. Evidence ids and URLs are copied from the pack. Insufficient-evidence and contradicted items stay labelled. A topic that cannot be rendered is isolated, and the index degrades to a text list that names the defect. `LocalObjectStore` writes `artifacts/{run_id}/R20/cards.json`, `manifest.json`, and `metrics.json`. Markdown is `reports/draft/{run_id}/topic_*.md` and `topic_index.md`.
+- `tests/unit/test_r20_render.py`: charts, cards, timeline, shared source hashes, Chinese text, Markdown escaping, foreign-URL withholding, topic isolation, schema errors, and artifact hashes. Tests use `tempfile`. The sealed retrieval test set and the full suite were not run.
 
 Real check output:
 
@@ -960,4 +963,17 @@ $ uv run pytest -q
 ........................................................................ [ 97%]
 .....................                                                    [100%]
 813 passed in 22.54s
+$ python -m pytest -q tests/unit/test_r20_render.py
+.......                                                                  [100%]
+============================== warnings summary ===============================
+..\..\.hermes-quantbot\hermes-agent\venv\Lib\site-packages\_pytest\config\__init__.py:1464
+  C:\Users\Du200\.hermes-quantbot\hermes-agent\venv\Lib\site-packages\_pytest\config\__init__.py:1464: PytestConfigWarning: Unknown config option: asyncio_default_fixture_loop_scope
+
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+7 passed, 1 warning in 0.66s
+
+$ python -m ruff check src/techpulse/reports/render.py tests/unit/test_r20_render.py
+All checks passed!
 ```
