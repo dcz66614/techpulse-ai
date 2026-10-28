@@ -407,3 +407,27 @@ Success: no issues found in 69 source files
 $ uv run pytest -q
 676 passed in 9.69s
 ```
+
+## I30 Retrieval evaluation gold set
+- `data/gold/retrieval/` is frozen with a 32-document corpus and 40 graded queries (20 English, 20 Chinese) across AI Agents, RAG, vector databases, and developer tools. The split is 24 train / 8 dev / 8 test. The corpus is local and derived from the collector fixtures; no live API was called. The sealed test split was not run.
+- `src/techpulse/evaluation/retrieval_metrics.py` implements nDCG@10 (gain `2**rel - 1`, log2 discount, ideal DCG from gold grades) and Recall@20 (grade > 0). `evaluate(retriever, gold)` accepts any `query -> ranked doc ids` callable and returns per-query plus overall, per-language, and per-topic macro averages. Thresholds are 0.75 and 0.85.
+- `tests/evaluation/test_retrieval_metrics.py` covers tiny hand-computed nDCG/Recall examples, duplicate-hit handling, aggregation, tempfile JSONL loading, invalid-grade rejection, and the frozen gold set's topic/language/split coverage. The real index was not evaluated.
+- Freeze record is in `docs/decisions/i30_gold_set.md`: `corpus.jsonl` 32 lines, `queries.jsonl` 40 lines, no hashing scheme.
+- Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.89ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+109 files already formatted
+
+$ uv run mypy
+Success: no issues found in 73 source files
+
+$ uv run pytest -q
+689 passed in 11.80s
+```

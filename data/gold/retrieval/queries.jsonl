@@ -1,0 +1,40 @@
+{"query_id": "ag-en-train-01", "query": "How do LLM agents plan and select tools?", "language": "en", "topic": "ai_agents", "split": "train", "relevance": {"ag-01": 3, "ag-04": 2, "ag-08": 1, "rag-01": 0}}
+{"query_id": "ag-en-train-02", "query": "benchmark local models on agent tool calls", "language": "en", "topic": "ai_agents", "split": "train", "relevance": {"ag-03": 3, "ag-07": 2, "ag-02": 1, "dev-02": 0}}
+{"query_id": "ag-en-train-03", "query": "memory and reflection for autonomous agents", "language": "en", "topic": "ai_agents", "split": "train", "relevance": {"ag-04": 3, "ag-01": 2, "ag-08": 1, "vdb-05": 0}}
+{"query_id": "ag-en-dev-04", "query": "safe sandbox for agent tool execution", "language": "en", "topic": "ai_agents", "split": "dev", "relevance": {"ag-06": 3, "ag-07": 2, "ag-02": 1, "dev-08": 0}}
+{"query_id": "ag-en-test-05", "query": "task decomposition in multi-agent systems", "language": "en", "topic": "ai_agents", "split": "test", "relevance": {"ag-05": 3, "ag-01": 2, "ag-04": 1, "rag-08": 0}}
+{"query_id": "ag-zh-train-01", "query": "大模型智能体如何做任务分解与工具调用", "language": "zh", "topic": "ai_agents", "split": "train", "relevance": {"ag-05": 3, "ag-01": 2, "ag-08": 1, "rag-08": 0}}
+{"query_id": "ag-zh-train-02", "query": "多智能体协作的规划方法", "language": "zh", "topic": "ai_agents", "split": "train", "relevance": {"ag-05": 3, "ag-01": 2, "ag-04": 1, "vdb-06": 0}}
+{"query_id": "ag-zh-train-03", "query": "工具调用智能体的安全边界", "language": "zh", "topic": "ai_agents", "split": "train", "relevance": {"ag-06": 3, "ag-07": 2, "ag-02": 1, "dev-08": 0}}
+{"query_id": "ag-zh-dev-04", "query": "本地模型智能体评测基准", "language": "zh", "topic": "ai_agents", "split": "dev", "relevance": {"ag-03": 3, "ag-07": 2, "ag-02": 1, "dev-02": 0}}
+{"query_id": "ag-zh-test-05", "query": "智能体记忆与反思机制", "language": "zh", "topic": "ai_agents", "split": "test", "relevance": {"ag-04": 3, "ag-01": 2, "ag-05": 1, "vdb-05": 0}}
+{"query_id": "rag-en-train-01", "query": "retrieval augmented generation with citation checks", "language": "en", "topic": "rag", "split": "train", "relevance": {"rag-06": 3, "rag-05": 2, "rag-03": 1, "ag-01": 0}}
+{"query_id": "rag-en-train-02", "query": "chunking strategies for retrieval augmented generation", "language": "en", "topic": "rag", "split": "train", "relevance": {"rag-07": 3, "rag-01": 2, "rag-03": 1, "vdb-03": 0}}
+{"query_id": "rag-en-train-03", "query": "hybrid sparse and dense retrieval", "language": "en", "topic": "rag", "split": "train", "relevance": {"rag-08": 3, "rag-02": 2, "rag-03": 1, "rag-04": 1}}
+{"query_id": "rag-en-dev-04", "query": "evaluating retrieval pipelines", "language": "en", "topic": "rag", "split": "dev", "relevance": {"rag-03": 3, "rag-01": 2, "rag-04": 1, "ag-03": 0}}
+{"query_id": "rag-en-test-05", "query": "reduce hallucinations with grounded retrieval", "language": "en", "topic": "rag", "split": "test", "relevance": {"rag-06": 3, "rag-05": 2, "rag-07": 1, "dev-06": 0}}
+{"query_id": "rag-zh-train-01", "query": "检索增强生成如何减少幻觉", "language": "zh", "topic": "rag", "split": "train", "relevance": {"rag-05": 3, "rag-06": 2, "rag-07": 1, "dev-06": 0}}
+{"query_id": "rag-zh-train-02", "query": "RAG 的混合检索与重排", "language": "zh", "topic": "rag", "split": "train", "relevance": {"rag-08": 3, "rag-02": 2, "rag-04": 1, "vdb-03": 0}}
+{"query_id": "rag-zh-train-03", "query": "检索增强生成的分块策略", "language": "zh", "topic": "rag", "split": "train", "relevance": {"rag-07": 3, "rag-01": 2, "rag-03": 1, "vdb-03": 0}}
+{"query_id": "rag-zh-dev-04", "query": "如何评估检索管线", "language": "zh", "topic": "rag", "split": "dev", "relevance": {"rag-03": 3, "rag-01": 2, "rag-04": 1, "ag-03": 0}}
+{"query_id": "rag-zh-test-05", "query": "带引用的检索增强生成", "language": "zh", "topic": "rag", "split": "test", "relevance": {"rag-05": 3, "rag-06": 2, "rag-03": 1, "dev-06": 0}}
+{"query_id": "vdb-en-train-01", "query": "HNSW versus IVF for approximate nearest neighbor search", "language": "en", "topic": "vector_databases", "split": "train", "relevance": {"vdb-03": 3, "vdb-02": 2, "vdb-01": 1, "rag-01": 0}}
+{"query_id": "vdb-en-train-02", "query": "pgvector index benchmark", "language": "en", "topic": "vector_databases", "split": "train", "relevance": {"vdb-02": 3, "vdb-03": 2, "vdb-04": 1, "dev-08": 0}}
+{"query_id": "vdb-en-train-03", "query": "filtered vector search in a relational database", "language": "en", "topic": "vector_databases", "split": "train", "relevance": {"vdb-04": 3, "vdb-02": 2, "vdb-08": 1, "rag-02": 0}}
+{"query_id": "vdb-en-dev-04", "query": "embedded vector store for local applications", "language": "en", "topic": "vector_databases", "split": "dev", "relevance": {"vdb-08": 3, "vdb-05": 2, "vdb-04": 1, "dev-01": 0}}
+{"query_id": "vdb-en-test-05", "query": "vector database recall latency tradeoff", "language": "en", "topic": "vector_databases", "split": "test", "relevance": {"vdb-03": 3, "vdb-01": 2, "vdb-02": 1, "rag-03": 0}}
+{"query_id": "vdb-zh-train-01", "query": "向量数据库的召回率与延迟权衡", "language": "zh", "topic": "vector_databases", "split": "train", "relevance": {"vdb-06": 3, "vdb-03": 2, "vdb-01": 1, "rag-03": 0}}
+{"query_id": "vdb-zh-train-02", "query": "中文语义检索的向量索引", "language": "zh", "topic": "vector_databases", "split": "train", "relevance": {"vdb-07": 3, "vdb-06": 2, "vdb-01": 1, "rag-02": 0}}
+{"query_id": "vdb-zh-train-03", "query": "HNSW 与 IVF 的近似最近邻比较", "language": "zh", "topic": "vector_databases", "split": "train", "relevance": {"vdb-03": 3, "vdb-01": 2, "vdb-02": 1, "rag-01": 0}}
+{"query_id": "vdb-zh-dev-04", "query": "关系数据库中的向量检索", "language": "zh", "topic": "vector_databases", "split": "dev", "relevance": {"vdb-04": 3, "vdb-02": 2, "vdb-08": 1, "rag-02": 0}}
+{"query_id": "vdb-zh-test-05", "query": "本地嵌入式向量存储", "language": "zh", "topic": "vector_databases", "split": "test", "relevance": {"vdb-08": 3, "vdb-05": 2, "vdb-07": 1, "dev-01": 0}}
+{"query_id": "dev-en-train-01", "query": "fast linter and formatter for Python notebooks", "language": "en", "topic": "developer_tools", "split": "train", "relevance": {"dev-02": 3, "dev-01": 2, "dev-06": 1, "rag-07": 0}}
+{"query_id": "dev-en-train-02", "query": "terminal UI for git worktrees", "language": "en", "topic": "developer_tools", "split": "train", "relevance": {"dev-03": 3, "dev-08": 2, "dev-01": 1, "vdb-05": 0}}
+{"query_id": "dev-en-train-03", "query": "structured logging for debugging local services", "language": "en", "topic": "developer_tools", "split": "train", "relevance": {"dev-04": 3, "dev-06": 2, "dev-08": 1, "rag-03": 0}}
+{"query_id": "dev-en-dev-04", "query": "local CI pipeline speed", "language": "en", "topic": "developer_tools", "split": "dev", "relevance": {"dev-08": 3, "dev-01": 2, "dev-03": 1, "vdb-02": 0}}
+{"query_id": "dev-en-test-05", "query": "IDE code completion evaluation", "language": "en", "topic": "developer_tools", "split": "test", "relevance": {"dev-06": 3, "dev-05": 2, "dev-02": 1, "rag-07": 0}}
+{"query_id": "dev-zh-train-01", "query": "面向开发者的代码补全工具评估", "language": "zh", "topic": "developer_tools", "split": "train", "relevance": {"dev-05": 3, "dev-06": 2, "dev-02": 1, "rag-07": 0}}
+{"query_id": "dev-zh-train-02", "query": "中文代码审查助手", "language": "zh", "topic": "developer_tools", "split": "train", "relevance": {"dev-07": 3, "dev-01": 2, "dev-05": 1, "ag-06": 0}}
+{"query_id": "dev-zh-train-03", "query": "Python notebook 的快速格式化工具", "language": "zh", "topic": "developer_tools", "split": "train", "relevance": {"dev-02": 3, "dev-01": 2, "dev-07": 1, "rag-07": 0}}
+{"query_id": "dev-zh-dev-04", "query": "终端里的 git worktree 管理工具", "language": "zh", "topic": "developer_tools", "split": "dev", "relevance": {"dev-03": 3, "dev-08": 2, "dev-01": 1, "vdb-05": 0}}
+{"query_id": "dev-zh-test-05", "query": "本地 CI 流水线如何提速", "language": "zh", "topic": "developer_tools", "split": "test", "relevance": {"dev-08": 3, "dev-01": 2, "dev-04": 1, "vdb-02": 0}}
