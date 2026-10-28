@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import sqlite3
 import time
 from collections.abc import Callable, Mapping
@@ -276,6 +277,15 @@ class CursorStore:
             )
         return rows
 
+    def begin_transaction(self) -> None:
+        self._conn.execute("BEGIN")
+
+    def commit_transaction(self) -> None:
+        self._conn.commit()
+
+    def rollback_transaction(self) -> None:
+        self._conn.rollback()
+
     def commit_success(
         self,
         source_id: str,
@@ -286,14 +296,16 @@ class CursorStore:
         id_dedup: bool,
         updated_at: str,
     ) -> list[tuple[str, str]]:
-        """Insert new rows and advance the watermark in one transaction.
+        """Stage new rows and the watermark. The caller commits the connection.
 
         An existing (source, id, hash) row is left as it was. When id_dedup is
         set, a source_record_id that is already stored is skipped entirely.
+        Releasing this savepoint does not commit an outer ``BEGIN``.
         """
         inserted: list[tuple[str, str]] = []
         try:
-            with self._conn:
+            self._conn.execute("SAVEPOINT page_commit")
+            try:
                 seen_ids: set[str] = set()
                 for item in items:
                     record_id = item.record.source_record_id
@@ -329,6 +341,11 @@ class CursorStore:
                     """,
                     (source_id, query_key, cursor, updated_at),
                 )
+                self._conn.execute("RELEASE SAVEPOINT page_commit")
+            except sqlite3.Error:
+                self._conn.execute("ROLLBACK TO SAVEPOINT page_commit")
+                self._conn.execute("RELEASE SAVEPOINT page_commit")
+                raise
         except sqlite3.Error as exc:
             raise CollectorFailure(
                 TaskStatus.RETRYABLE_ERROR, "retryable_error: cursor store"
@@ -497,7 +514,12 @@ def collect_pages(
     run_id: str | None,
     ticket: str,
 ) -> CollectResult:
-    """Walk pages. Commit each successful page before requesting the next one."""
+    """Walk pages. Fsync requested artifacts, then commit the cursor.
+
+    Staged pages stay in one transaction until ``raw.jsonl``, ``manifest.json``,
+    and ``metrics.json`` have been fsynced. An artifact error rolls that
+    transaction back, so the cursor stays at its previous value.
+    """
     stored = store.get_cursor(config.source_id, query_key)
     if explicit_cursor is None and stored == "":
         result = _result(
@@ -519,9 +541,13 @@ def collect_pages(
     warnings: list[str] = []
     new_count = 0
     pages = 0
+    transaction_open = False
     try:
         while True:
             page = fetch_page(cursor)
+            if not transaction_open:
+                store.begin_transaction()
+                transaction_open = True
             pages += 1
             warnings.extend(page.warnings)
             inserted = store.commit_success(
@@ -552,8 +578,12 @@ def collect_pages(
             warnings=warnings,
             pages=pages,
         )
-        _write_if_requested(result, artifacts_dir, run_id, ticket)
+        _finish_collect(store, transaction_open, result, artifacts_dir, run_id, ticket)
         return result
+    except Exception:
+        if transaction_open:
+            store.rollback_transaction()
+        raise
     result = _result(
         status=TaskStatus.SUCCESS,
         records=records,
@@ -562,7 +592,7 @@ def collect_pages(
         warnings=warnings,
         pages=pages,
     )
-    _write_if_requested(result, artifacts_dir, run_id, ticket)
+    _finish_collect(store, transaction_open, result, artifacts_dir, run_id, ticket)
     return result
 
 
@@ -630,6 +660,13 @@ def parse_timestamp(value: str) -> datetime:
     return parsed.astimezone(UTC)
 
 
+def _write_fsynced(path: Path, text: str) -> None:
+    with path.open("w", encoding="utf-8") as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+
+
 def write_run_artifacts(
     artifacts_dir: Path,
     run_id: str,
@@ -641,20 +678,17 @@ def write_run_artifacts(
     directory.mkdir(parents=True, exist_ok=True)
     lines = [record.model_dump_json() for record in records]
     body = "".join(f"{line}\n" for line in lines)
-    raw_path = directory / "raw.jsonl"
-    raw_path.write_text(body, encoding="utf-8")
+    _write_fsynced(directory / "raw.jsonl", body)
     manifest = {
         "ticket": ticket,
         "rows": len(records),
         "raw_sha256": hashlib.sha256(body.encode("utf-8")).hexdigest(),
         "raw_name": "raw.jsonl",
     }
-    (directory / "manifest.json").write_text(
-        json.dumps(manifest, indent=2) + "\n", encoding="utf-8"
-    )
-    (directory / "metrics.json").write_text(
+    _write_fsynced(directory / "manifest.json", json.dumps(manifest, indent=2) + "\n")
+    _write_fsynced(
+        directory / "metrics.json",
         json.dumps(dict(metrics), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
     )
     return directory
 
@@ -716,6 +750,25 @@ def _write_if_requested(
     if artifacts_dir is None or run_id is None or not run_id.strip():
         return
     write_run_artifacts(artifacts_dir, run_id, ticket, result.records, result.metrics)
+
+
+def _finish_collect(
+    store: CursorStore,
+    transaction_open: bool,
+    result: CollectResult,
+    artifacts_dir: Path | None,
+    run_id: str | None,
+    ticket: str,
+) -> None:
+    """Write artifacts first. Commit the staged cursor only after they fsync."""
+    try:
+        _write_if_requested(result, artifacts_dir, run_id, ticket)
+    except Exception:
+        if transaction_open:
+            store.rollback_transaction()
+        raise
+    if transaction_open:
+        store.commit_transaction()
 
 
 def _unique_items(items: list[ParsedItem]) -> list[ParsedItem]:

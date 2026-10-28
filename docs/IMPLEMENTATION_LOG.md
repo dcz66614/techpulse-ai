@@ -247,3 +247,29 @@ $ uv run pytest -q
 .......................................................                  [100%]
 127 passed in 6.76s
 ```
+
+## CAfix Cursor commit after artifacts
+- `src/techpulse/collectors/base.py`: `collect_pages` keeps each page in one transaction and commits the cursor only after `raw.jsonl`, `manifest.json`, and `metrics.json` are written and fsynced. If that write fails, the transaction is rolled back, so the cursor and seen rows stay at their previous values.
+- `tests/integration/test_artifact_cursor.py`: an `os.fsync` failure after both OpenAlex pages are fetched leaves the cursor unset, and the rerun returns the same records as a clean collect. Crossref and arXiv use this same `collect_pages` path.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.77ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+90 files already formatted
+
+$ uv run mypy
+Success: no issues found in 58 source files
+
+$ uv run pytest -q
+........................................................................ [ 56%]
+........................................................                 [100%]
+128 passed in 4.39s
+```
+
