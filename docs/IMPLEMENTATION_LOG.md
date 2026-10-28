@@ -547,4 +547,18 @@ Success: no issues found in 2 source files
 $ uv run pytest -q tests/integration/test_i10_embed.py tests/evaluation/test_retrieval.py
 ...................                                                      [100%]
 19 passed in 1.98s
+## G10-prep Compliant sample template and interview guide
+- Added `growth/sample_template.md`, an evidence-complete report skeleton with topic, trend score, confidence, claim/evidence and placeholder source URL fields, a counter-evidence section, `as_of`, the `AI 生成` label, and `q10_status: PENDING`; every value is an obvious `<PLACEHOLDER>` and no fact, number or URL is invented.
+- Added `growth/interview_guide.md` (Chinese): consent wording, workflow/budget/alternatives script, anonymised feedback form, and CRM field list with no names, emails, phones or other personal contact data. Drafts only; no third party is contacted; sending invitations requires AUTH-06.
+- Added `growth/README.md` explaining that `sample_1.md`/`sample_2.md` are produced only after R10+Q10 PASS and that unpublished or QA-failed samples must not be shown externally.
+- Added `tests/growth/test_growth_docs.py` covering file existence, UTF-8 decoding, the AUTH-06 notice, absence of email/phone patterns, required template fields (`Q10`, `as_of`, `AI 生成`), and placeholder-only http(s) URLs.
+- Real check output:
+
+```text
+$ uv run python -m pytest -q tests/growth
+........                                                                 [100%]
+8 passed in 0.02s
+
+$ uv run python -m ruff check tests/growth .
+All checks passed!
 ```
