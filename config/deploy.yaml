@@ -32,3 +32,15 @@ auth06:
   production_target: local_v1_0
   public_outreach: false
   paid_services: false
+
+# V99 24-hour soak runner acceptance thresholds (Ticket DECfix / DECbox).
+# PASS requires hourly cadence: >=24h wall-clock elapsed, >=23 successful cycles,
+# and no cycle gap >2h (7200s) between successive cycles.
+soak:
+  target_hours: 24.0
+  min_successful_cycles: 23
+  max_cycle_gap_seconds: 7200.0  # 2 hours max gap between successive cycles
+  p0_success_rate_threshold: 0.99
+  max_cost_usd: 5.00
+  interval_minutes: 60.0
+

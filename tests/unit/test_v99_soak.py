@@ -1,13 +1,17 @@
-"""Unit tests for V99 24-hour unattended soak runner (Ticket DECbox).
+"""Unit tests for V99 24-hour unattended soak runner (Ticket DECbox / DECfix).
 
 Tests use a fake clock (ManualClock), short intervals, and tempfile.
 They do not make live third-party API calls, open listening ports, or read .env.
 Covers:
 - No PASS before 24h of wall-clock time
-- Criteria computed strictly from real cycles
+- Criteria computed strictly from real cycle evidence
+- Refusal to write mvp_acceptance.md or any PASS before 24h
+- Hourly cadence requirement (>=24h elapsed, >=23 successful cycles, gap <= 2h)
+- Failures on excessive gap (>2h) and insufficient cycles (<23)
 - Failures recorded honestly (never fake success)
 - Resumes safely if restarted (idempotent state)
-- Running status output
+- Running status output reports IN PROGRESS before 24h
+- No hard-coded PASS in acceptance markdown
 """
 
 from __future__ import annotations
@@ -21,6 +25,7 @@ from techpulse.ops.soak import (
     AUTH04_SOURCES,
     CycleRecord,
     SoakRunner,
+    make_stub_activities,
 )
 from techpulse.workflows.orchestrator import ManualClock
 
@@ -28,10 +33,15 @@ _T0 = datetime(2026, 10, 27, 8, 0, tzinfo=UTC)
 
 
 def test_no_pass_before_24h() -> None:
-    """Before 24h elapsed wall-clock time, evaluate must NEVER return PASS."""
+    """Before 24h elapsed wall-clock time, evaluate must NEVER return PASS.
+
+    write_artifacts must REFUSE to write mvp_acceptance.md before 24h.
+    PASS requires >=24h duration, >=23 successful cycles, and no gap >2h.
+    """
     with TemporaryDirectory() as tmp:
         base = Path(tmp)
         clock = ManualClock(_T0)
+        stubs = make_stub_activities()
         runner = SoakRunner(
             artifacts_dir=base / "artifacts",
             docs_dir=base / "docs" / "decisions",
@@ -39,6 +49,7 @@ def test_no_pass_before_24h() -> None:
             clock=clock,
             interval_minutes=60.0,
             target_hours=24.0,
+            activities=stubs,
         )
 
         # Run 5 cycles, advancing clock by 1 hour (3600s) each cycle -> 5 hours elapsed
@@ -57,30 +68,53 @@ def test_no_pass_before_24h() -> None:
         assert any("24h soak duration requirement not satisfied" in b for b in eval_early.blockers)
         assert any("PASS is strictly prohibited before 24h" in b for b in eval_early.blockers)
 
-        # Artifacts written before 24h must record FAIL, never PASS
+        # write_artifacts before 24h must record FAIL in soak_test.json
+        # and REFUSE to write mvp_acceptance.md
         artifacts_early = runner.write_artifacts(eval_early)
         soak_json = json.loads(artifacts_early["soak_test"].read_text(encoding="utf-8"))
         assert soak_json["status"] == "FAIL"
+        assert "mvp_acceptance" not in artifacts_early
+        assert not (runner.docs_dir / "mvp_acceptance.md").is_file()
 
-        # Advance clock to 25 hours (past 24h threshold)
-        clock.sleep(20 * 3600.0)
+        # Continue hourly cycles up to 24 cycles (24h continuous wall-clock)
+        for idx in range(6, 25):
+            rec = runner.execute_cycle(idx)
+            assert rec.success is True
+            clock.sleep(3600.0)
+
         assert runner.elapsed_seconds() >= 86400.0
-
         eval_full = runner.evaluate()
         assert eval_full.status == "PASS"
         assert eval_full.criteria["duration_24h_met"] is True
         assert eval_full.criteria["p0_success_rate_met"] is True
+        assert eval_full.criteria["cadence_hourly_met"] is True
+        assert eval_full.criteria["zero_duplicates_met"] is True
+        assert eval_full.criteria["zero_security_violations_met"] is True
+        assert eval_full.criteria["traceable_sources_met"] is True
+        assert eval_full.criteria["budget_limit_met"] is True
 
         artifacts_full = runner.write_artifacts(eval_full)
         soak_full = json.loads(artifacts_full["soak_test"].read_text(encoding="utf-8"))
         assert soak_full["status"] == "PASS"
         metrics_full = json.loads(artifacts_full["metrics"].read_text(encoding="utf-8"))
         assert metrics_full["status"] == "PASS"
+        assert metrics_full["cadence_hourly_met"] is True
         manifest_full = json.loads(artifacts_full["manifest"].read_text(encoding="utf-8"))
         assert manifest_full["status"] == "PASS"
         assert artifacts_full["mvp_acceptance"].is_file()
         md_text = artifacts_full["mvp_acceptance"].read_text(encoding="utf-8")
         assert "APPROVED (PASS)" in md_text
+        assert "| Unattended Soak Duration | ≥24.0 hours | 24.00h (86400s) | PASS |" in md_text
+        assert (
+            "| Hourly Cadence & Gap Control | ≥23 cycles, gap ≤2.0h | "
+            "24 cycles, max gap 1.00h | PASS |" in md_text
+        )
+        assert "| Duplicate Records Written | 0 duplicates | 0 duplicates | PASS |" in md_text
+        assert "| Soak Resource Budget Spend | ≤$5.00 USD | $0.00 USD | PASS |" in md_text
+        assert (
+            "| Security / Secret Violations | 0 events | 0 leaks, 0 escalations | PASS |" in md_text
+        )
+        assert "| Lawful Sources (AUTH-04) | 100% compliant | Core 5 sources verified" in md_text
 
 
 def test_criteria_computed_from_cycles() -> None:
@@ -97,9 +131,9 @@ def test_criteria_computed_from_cycles() -> None:
             target_hours=24.0,
         )
 
-        # Inject 100 cycles directly into cycles.jsonl: 99 success, 1 failure
         runner.start_time()
 
+        # Inject 100 cycles directly into cycles.jsonl: 99 success, 1 failure
         for idx in range(1, 101):
             is_success = idx != 42  # cycle 42 fails
             errors = ["synthetic network failure"] if not is_success else []
@@ -129,6 +163,7 @@ def test_criteria_computed_from_cycles() -> None:
         assert eval_result.status == "PASS"
         assert eval_result.criteria["p0_success_rate_met"] is True
         assert eval_result.criteria["duration_24h_met"] is True
+        assert eval_result.criteria["cadence_hourly_met"] is True
         assert eval_result.duplicates_written == 0
         assert eval_result.total_cost_usd == 0.0
         assert eval_result.reports_published == 99
@@ -182,18 +217,94 @@ def test_criteria_fails_when_success_rate_below_99() -> None:
         assert any("below threshold" in b for b in eval_result.blockers)
 
 
-def test_failures_recorded_honestly() -> None:
-    """Network failure is recorded in per-source success and cycle errors; never fakes success."""
+def test_evaluation_fails_when_cycle_gap_exceeds_two_hours() -> None:
+    """PASS requires no gap > 2h between successive cycles."""
     with TemporaryDirectory() as tmp:
         base = Path(tmp)
         clock = ManualClock(_T0)
+        stubs = make_stub_activities()
         runner = SoakRunner(
             artifacts_dir=base / "artifacts",
             docs_dir=base / "docs" / "decisions",
             database_path=base / "soak.sqlite",
             clock=clock,
             interval_minutes=60.0,
-            fail_sources=["github"],  # Simulate GitHub collector network failure
+            target_hours=24.0,
+            activities=stubs,
+        )
+
+        # Run 10 cycles with 1-hour intervals
+        for idx in range(1, 11):
+            rec = runner.execute_cycle(idx)
+            assert rec.success is True
+            clock.sleep(3600.0)
+
+        # Introduce a 3-hour gap (10800s > 7200s limit)
+        clock.sleep(7200.0)  # Total gap between cycle 10 and 11 is 3600 + 7200 = 10800s = 3h
+
+        # Run remaining cycles up to 24
+        for idx in range(11, 25):
+            rec = runner.execute_cycle(idx)
+            assert rec.success is True
+            clock.sleep(3600.0)
+
+        assert runner.elapsed_seconds() >= 86400.0
+        assert len(runner.load_cycles()) == 24
+        eval_result = runner.evaluate()
+
+        assert eval_result.status == "FAIL"
+        assert eval_result.criteria["cadence_hourly_met"] is False
+        assert eval_result.max_cycle_gap_seconds > 7200.0
+        assert any("exceeds maximum allowed gap" in b for b in eval_result.blockers)
+
+
+def test_evaluation_fails_when_insufficient_cycles() -> None:
+    """PASS requires at least 23 successful cycles over >=24h."""
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        clock = ManualClock(_T0)
+        stubs = make_stub_activities()
+        runner = SoakRunner(
+            artifacts_dir=base / "artifacts",
+            docs_dir=base / "docs" / "decisions",
+            database_path=base / "soak.sqlite",
+            clock=clock,
+            interval_minutes=60.0,
+            target_hours=24.0,
+            activities=stubs,
+        )
+
+        # Run only 20 cycles with 1-hour intervals -> 20 hours
+        for idx in range(1, 21):
+            rec = runner.execute_cycle(idx)
+            assert rec.success is True
+            clock.sleep(3600.0)
+
+        # Advance clock to 25 hours (>=24h elapsed)
+        clock.sleep(5 * 3600.0)
+        assert runner.elapsed_seconds() >= 86400.0
+
+        eval_result = runner.evaluate()
+        assert eval_result.status == "FAIL"
+        assert eval_result.criteria["duration_24h_met"] is True
+        assert eval_result.criteria["cadence_hourly_met"] is False
+        assert any("Insufficient successful cycles" in b for b in eval_result.blockers)
+
+
+def test_failures_recorded_honestly() -> None:
+    """Network failure is recorded in per-source success and cycle errors; never fakes success."""
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        clock = ManualClock(_T0)
+        stubs = make_stub_activities(fail_sources=["github"])
+        runner = SoakRunner(
+            artifacts_dir=base / "artifacts",
+            docs_dir=base / "docs" / "decisions",
+            database_path=base / "soak.sqlite",
+            clock=clock,
+            interval_minutes=60.0,
+            fail_sources=["github"],
+            activities=stubs,
         )
 
         record = runner.execute_cycle(1)
@@ -205,13 +316,11 @@ def test_failures_recorded_honestly() -> None:
         assert record.per_source_success["hn"] is True
         assert any("github" in err for err in record.errors)
 
-        # Verify appended to cycles.jsonl
         cycles = runner.load_cycles()
         assert len(cycles) == 1
         assert cycles[0].success is False
         assert cycles[0].per_source_success["github"] is False
 
-        # Verify heartbeat file
         assert runner.heartbeat_file.is_file()
         heartbeat = json.loads(runner.heartbeat_file.read_text(encoding="utf-8"))
         assert heartbeat["last_cycle_status"] == "FAIL"
@@ -227,12 +336,14 @@ def test_resumes_safely_if_restarted() -> None:
         docs = base / "docs" / "decisions"
         db = base / "soak.sqlite"
 
+        stubs = make_stub_activities()
         runner1 = SoakRunner(
             artifacts_dir=artifacts,
             docs_dir=docs,
             database_path=db,
             clock=clock,
             interval_minutes=60.0,
+            activities=stubs,
         )
         rec1 = runner1.execute_cycle(1)
         clock.sleep(3600.0)
@@ -249,6 +360,7 @@ def test_resumes_safely_if_restarted() -> None:
             database_path=db,
             clock=clock,
             interval_minutes=60.0,
+            activities=stubs,
         )
         assert runner2.start_time() == start_time_1
         assert len(runner2.load_cycles()) == 2
@@ -263,7 +375,35 @@ def test_resumes_safely_if_restarted() -> None:
 
 
 def test_status_flag_output() -> None:
-    """The status report formats running tallies, elapsed time, and per-source stats."""
+    """The status report formats running tallies and reports IN PROGRESS before 24h."""
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        clock = ManualClock(_T0)
+        stubs = make_stub_activities()
+        runner = SoakRunner(
+            artifacts_dir=base / "artifacts",
+            docs_dir=base / "docs" / "decisions",
+            database_path=base / "soak.sqlite",
+            clock=clock,
+            interval_minutes=60.0,
+            activities=stubs,
+        )
+        runner.execute_cycle(1)
+        clock.sleep(3600.0)
+
+        report = runner.status_report()
+        assert "TechPulse-AI V99 Soak Runner Status" in report
+        assert "Status:             IN PROGRESS" in report
+        assert "Cycles Completed:   1" in report
+        assert "openalex" in report
+        assert "github" in report
+
+
+def test_acceptance_doc_computed_not_hardcoded_pass() -> None:
+    """Acceptance table rows are computed from evidence; zero hard-coded PASS.
+
+    If 0 cycles exist, rows report NOT MEASURED. If violations exist, they report FAIL.
+    """
     with TemporaryDirectory() as tmp:
         base = Path(tmp)
         clock = ManualClock(_T0)
@@ -272,15 +412,56 @@ def test_status_flag_output() -> None:
             docs_dir=base / "docs" / "decisions",
             database_path=base / "soak.sqlite",
             clock=clock,
-            interval_minutes=60.0,
+            target_hours=24.0,
         )
-        runner.execute_cycle(1)
-        clock.sleep(3600.0)
 
-        report = runner.status_report()
-        assert "TechPulse-AI V99 Soak Runner Status" in report
-        assert "IN PROGRESS" in report
-        assert "PASS strictly prohibited before 24h" in report
-        assert "Cycles Completed:   1" in report
-        assert "openalex" in report
-        assert "github" in report
+        # 1. Zero cycles: every criterion requiring cycle evidence reports NOT MEASURED
+        eval_zero = runner.evaluate()
+        md_zero = runner.generate_acceptance_markdown(eval_zero)
+        assert (
+            "| 24h P0 Execution Success Rate | ≥99.0% | NOT MEASURED (0 cycles) | NOT MEASURED |"
+            in md_zero
+        )
+        assert (
+            "| Duplicate Records Written | 0 duplicates | NOT MEASURED (0 cycles) | NOT MEASURED |"
+            in md_zero
+        )
+        assert (
+            "| Soak Resource Budget Spend | ≤$5.00 USD | NOT MEASURED (0 cycles) | NOT MEASURED |"
+            in md_zero
+        )
+        assert (
+            "| Security / Secret Violations | 0 events | NOT MEASURED (0 cycles) | NOT MEASURED |"
+            in md_zero
+        )
+        assert (
+            "| Lawful Sources (AUTH-04) | 100% compliant | NOT MEASURED (0 cycles) | NOT MEASURED |"
+            in md_zero
+        )
+        assert "| PASS |" not in md_zero
+        assert "**APPROVED (PASS)**" not in md_zero
+
+        # 2. Inject cycle with duplicates > 0 and cost > $5.00 and secret leak error
+        clock.sleep(86400.0)
+        bad_cycle = CycleRecord(
+            timestamp=clock.now().isoformat(),
+            run_id="bad-cycle-01",
+            success=False,
+            per_source_success={s: True for s in AUTH04_SOURCES},
+            duplicates_written=7,
+            cost=12.50,
+            cost_usd=12.50,
+            errors=["fatal: secret token leaked in error payload"],
+            qa_results={"qa_pass": False},
+            reports_published=0,
+        )
+        runner.append_cycle(bad_cycle)
+
+        eval_bad = runner.evaluate()
+        md_bad = runner.generate_acceptance_markdown(eval_bad)
+        assert "| Duplicate Records Written | 0 duplicates | 7 duplicates | FAIL |" in md_bad
+        assert "| Soak Resource Budget Spend | ≤$5.00 USD | $12.50 USD | FAIL |" in md_bad
+        assert (
+            "| Security / Secret Violations | 0 events | 1 leaks, 0 escalations | FAIL |" in md_bad
+        )
+        assert "REFUSED (FAIL)" in md_bad

@@ -1799,3 +1799,49 @@ $ uv run pytest -q
 ....................................................                     [100%]
 916 passed, 1 deselected, 1 warning in 35.84s
 ```
+
+
+## DECfix soak evidence-based acceptance, real cycles, sqlite deploy
+
+- Acceptance markdown generation (`src/techpulse/ops/soak.py`): eliminated hard-coded PASS in acceptance table. Every row (`duration`, `p0_success_rate`, `cadence_hourly`, `duplicates`, `budget`, `security_violations`, `traceable_sources`) is dynamically evaluated from recorded cycle evidence (`cycles.jsonl` and artifact evidence). Any unmeasurable row outputs `NOT MEASURED` and fails closed (never PASS).
+- Computed lawful sources: `sources_met` dynamically evaluates per-source cycle evidence, verifying coverage of all 5 core AUTH-04 sources (`openalex`, `crossref`, `arxiv`, `github`, `hn`) and rejecting unauthorized sources.
+- 24h wall-clock enforcement: `write_artifacts()` and `--evaluate-now` strictly refuse to write `docs/decisions/mvp_acceptance.md` or generate PASS before >=24h of real wall-clock elapsed time. `--status` reports `"IN PROGRESS"` before 24h.
+- Real O20 pipeline execution: soak cycles run the real pipeline activities for AUTH-04 public sources (`collect_openalex`, `collect_crossref`, `collect_arxiv`, `GitHubCollector`, `HNCollector`, `clean_from_manifest`, `sanitize_from_clean`, `run_dedup`) with rate limiting and local offline governance, recording real counts, errors, and durations. Dependency injection stubs via `make_stub_activities()` are used in unit tests.
+- Hourly cadence and gap control: configured soak thresholds in `config/deploy.yaml` (`target_hours: 24.0`, `min_successful_cycles: 23`, `max_cycle_gap_seconds: 7200.0`, `p0_success_rate_threshold: 0.99`, `max_cost_usd: 5.00`). Added unit tests for gap (>2h) and insufficient-cycles (<23) FAIL cases.
+- Deploy and SQLite migrations: updated `migrations/env.py` to resolve database URL from `-x` CLI args, `DATABASE_URL`, `TECHPULSE_API_DATABASE`, or `config/deploy.yaml` (`artifacts/app.sqlite`). Corrected dry-run invocation in `docs/deploy.md` (`uv run python scripts/migration_dry_run.py`). Enhanced `scripts/run_local.sh` to auto-initialize SQLite schema with `uv run alembic upgrade head` if not present.
+- Reverted blank-line noise while preserving functional Linux box deploy target changes.
+
+Real check output:
+
+```text
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+187 files already formatted
+
+$ uv run mypy src tests
+Success: no issues found in 102 source files
+
+$ uv run pytest -q -p no:cacheprovider
+........................................................................ [  7%]
+........................................................................ [ 15%]
+........................................................................ [ 23%]
+........................................................................ [ 31%]
+........................................................................ [ 39%]
+........................................................................ [ 47%]
+........................................................................ [ 54%]
+........................................................................ [ 62%]
+........................................................................ [ 70%]
+........................................................................ [ 78%]
+........................................................................ [ 86%]
+........................................................................ [ 94%]
+.......................................................                  [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+919 passed, 1 deselected, 1 warning in 51.21s
+```

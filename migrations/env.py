@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import os
 from logging.config import fileConfig
+from pathlib import Path
 
+import yaml
 from alembic import context
 from sqlalchemy import engine_from_config, event, pool
 
@@ -13,15 +16,57 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 
+def _get_target_url() -> str:
+    """Resolve target database URL from CLI args, env, or config/deploy.yaml."""
+    x_args = context.get_x_argument(as_dictionary=True)
+    if "url" in x_args:
+        return x_args["url"]
+    if "database" in x_args:
+        return f"sqlite:///{Path(x_args['database']).resolve().as_posix()}"
+
+    env_url = os.environ.get("DATABASE_URL") or os.environ.get("TECHPULSE_DATABASE_URL")
+    if env_url:
+        return env_url
+    if os.environ.get("TECHPULSE_API_DATABASE"):
+        return f"sqlite:///{Path(os.environ['TECHPULSE_API_DATABASE']).resolve().as_posix()}"
+
+    main_url = config.get_main_option("sqlalchemy.url")
+    if main_url and not main_url.startswith("postgresql+psycopg://techpulse@localhost"):
+        return main_url
+
+    repo_root = Path(__file__).resolve().parents[1]
+    deploy_yaml = repo_root / "config" / "deploy.yaml"
+    if deploy_yaml.is_file():
+        try:
+            raw = yaml.safe_load(deploy_yaml.read_text(encoding="utf-8"))
+            if isinstance(raw, dict):
+                auth02 = raw.get("auth02", {})
+                if isinstance(auth02, dict) and auth02.get("database") == "sqlite":
+                    default_sqlite = repo_root / "artifacts" / "app.sqlite"
+                    return f"sqlite:///{default_sqlite.resolve().as_posix()}"
+        except Exception:
+            pass
+
+    return main_url or ""
+
+
 def run_migrations_offline() -> None:
-    url = config.get_main_option("sqlalchemy.url")
+    url = _get_target_url()
     context.configure(url=url, literal_binds=True, dialect_opts={"paramstyle": "named"})
     with context.begin_transaction():
         context.run_migrations()
 
 
 def run_migrations_online() -> None:
+    url = _get_target_url()
+    config.set_main_option("sqlalchemy.url", url)
     section = config.get_section(config.config_ini_section, {})
+    section["sqlalchemy.url"] = url
+
+    if url.startswith("sqlite:///"):
+        db_path = Path(url.removeprefix("sqlite:///"))
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+
     connectable = engine_from_config(section, prefix="sqlalchemy.", poolclass=pool.NullPool)
     if connectable.dialect.name == "sqlite":
 

@@ -9,8 +9,18 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 export UV_PROJECT_ENVIRONMENT="${REPO_ROOT}/.venv"
 
+# Ensure API database path and URL are configured
+export TECHPULSE_API_DATABASE="${TECHPULSE_API_DATABASE:-${REPO_ROOT}/artifacts/app.sqlite}"
+export DATABASE_URL="${DATABASE_URL:-sqlite:///${TECHPULSE_API_DATABASE}}"
+
 # Sync dependencies from frozen lockfile
 uv sync --frozen
+
+# Ensure database schema is initialized if not present
+if [ ! -f "${TECHPULSE_API_DATABASE}" ]; then
+    echo "Initializing database schema at ${TECHPULSE_API_DATABASE}..."
+    uv run alembic upgrade head
+fi
 
 # Ensure artifacts/deploy directory exists
 mkdir -p "${REPO_ROOT}/artifacts/deploy"

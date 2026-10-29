@@ -37,10 +37,13 @@ uv sync --frozen
 Initialize or upgrade the local SQLite database schema to Alembic head revision:
 ```bash
 # Verify schema migration via dry-run on a temporary SQLite instance
-uv run python scripts/migration_dry_run.py --database artifacts/app.sqlite
+uv run python scripts/migration_dry_run.py
 
 # Apply migrations directly to the local SQLite database file
+# (Alembic resolves SQLite from DATABASE_URL / TECHPULSE_API_DATABASE / config/deploy.yaml)
 uv run alembic upgrade head
+# Or apply directly via migration runner:
+# uv run python scripts/migration_dry_run.py --database artifacts/app.sqlite
 ```
 
 ### Step 3: Local Smoke Health Verification
