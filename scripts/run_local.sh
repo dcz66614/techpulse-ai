@@ -1,18 +1,23 @@
 #!/usr/bin/env bash
-# Starts the TechPulse-AI read-only API locally on the owner's PC.
-# Authorized by AUTH-02 / AUTH-06 (Ticket DEC) for local single-machine deployment.
+# Starts the TechPulse-AI read-only API locally on a dedicated Linux box.
+# Authorized by AUTH-02 / AUTH-06 (Ticket DEC / DECbox) for local single-machine deployment.
 set -euo pipefail
-
-HOST="${1:-127.0.0.1}"
-PORT="${2:-8000}"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-echo "Starting TechPulse-AI API locally at http://${HOST}:${PORT}"
-echo "Local deployment target: SQLite + uvicorn (AUTH-02 / AUTH-06)"
-
 cd "${REPO_ROOT}"
 export UV_PROJECT_ENVIRONMENT="${REPO_ROOT}/.venv"
 
-exec uv run uvicorn techpulse.api.main:app --host "${HOST}" --port "${PORT}"
+# Sync dependencies from frozen lockfile
+uv sync --frozen
+
+# Ensure artifacts/deploy directory exists
+mkdir -p "${REPO_ROOT}/artifacts/deploy"
+
+PORT="${1:-8000}"
+LOG_FILE="${REPO_ROOT}/artifacts/deploy/uvicorn.log"
+
+echo "Starting TechPulse-AI API bound to 127.0.0.1:${PORT} (logging to ${LOG_FILE})"
+
+exec uv run uvicorn techpulse.api.main:app --host 127.0.0.1 --port "${PORT}" >> "${LOG_FILE}" 2>&1

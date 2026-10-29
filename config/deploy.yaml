@@ -1,12 +1,16 @@
-# Deployment authorization (Ticket DEC).
-# Delegated decision by dispatcher on Cd's behalf (2026-10-29).
+# Deployment authorization (Ticket DECbox, updating Ticket DEC).
+# Delegated decision by dispatcher on Cd's behalf (2026-10-29); target updated per Ticket DECbox.
 
-# AUTH-02: Local single-machine deployment on the owner's PC.
+# AUTH-02: Local single-machine deployment on a separate always-on Linux machine
+# (x86_64, Python via uv, no Docker, no Postgres), NOT the owner's Windows PC.
+# Reason for change: the owner's PC shuts down nightly.
 # Target: local only. SQLite database, local runner (uvicorn + O20 local orchestrator).
 # No Docker, no Postgres, no cloud spend. Cloud / public deployment remains refused.
 auth02:
   granted: true
   target: local
+  host_platform: linux_x86_64
+  python_runner: uv
   allowed_targets:
     - local
   prohibited_targets:

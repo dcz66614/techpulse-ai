@@ -1,14 +1,14 @@
-# Deployment Guide: Local Single-Machine Deployment (AUTH-02 / AUTH-06)
+# Deployment Guide: Dedicated Linux Machine Deployment (AUTH-02 / AUTH-06)
 
-This document describes the deployment architecture and execution steps for TechPulse-AI. Under decisions **AUTH-02** (`docs/decisions/auth02_deploy_target.md`) and **AUTH-06** (`docs/decisions/auth06_local_release.md`), delegated by Cd on 2026-10-29 (Ticket DEC), the authorized deployment target is a **local single-machine deployment on the owner's PC**.
+This document describes the deployment architecture and execution steps for TechPulse-AI. Under decision **AUTH-02** (`docs/decisions/auth02_deploy_target.md`, updated under Ticket DECbox) and **AUTH-06** (`docs/decisions/auth06_local_release.md`), the authorized deployment target is a **separate always-on Linux machine (x86_64, Python via uv, no Docker, no Postgres)**, NOT the owner's Windows PC (which shuts down nightly).
 
 ---
 
 ## 1. Deployment Architecture & Boundaries
 
-- **Deploy Target:** Local single-machine deployment on the owner's PC (`127.0.0.1`).
+- **Deploy Target:** Single-machine self-hosted deployment on a dedicated always-on Linux box (`x86_64`, `127.0.0.1`).
 - **Database Backend:** SQLite (managed via Alembic migrations at `migrations/`). No external PostgreSQL server is required or connected.
-- **Application Server:** FastAPI application served via `uvicorn` (`techpulse.api.main:app`).
+- **Application Server:** FastAPI application served via `uvicorn` (`techpulse.api.main:app`) bound strictly to `127.0.0.1`.
 - **Workflow Pipeline:** Local task orchestrator (`O20` / `techpulse.workflows.orchestrator.LocalOrchestrator`) executing linear stages with SQLite checkpoints. No external Temporal server is required.
 - **Containerization:** None. No Docker daemon is used; no container image is built or pushed. Image digest is recorded honestly as `"N/A (local deployment, no container)"`.
 - **Cloud Infrastructure Spend:** $0.00 cloud spend cap. No cloud VMs, managed clusters, or paid services are authorized.
@@ -18,13 +18,14 @@ This document describes the deployment architecture and execution steps for Tech
 
 ## 2. Prerequisites
 
-1. **Python:** Python 3.12 or higher.
-2. **Package Manager:** `uv` installed and available in PATH.
-3. **Environment:** Set `UV_PROJECT_ENVIRONMENT=.venv` (or activate `.venv`).
+1. **Host:** Linux machine (`x86_64`) with always-on availability.
+2. **Python:** Python 3.12 or higher.
+3. **Package Manager:** `uv` installed and available in PATH.
+4. **Environment:** Set `UV_PROJECT_ENVIRONMENT=.venv` (or activate `.venv`).
 
 ---
 
-## 3. Local Deployment Steps
+## 3. Deployment Steps
 
 ### Step 1: Environment Setup
 Sync project dependencies from the locked specification:
@@ -38,7 +39,7 @@ Initialize or upgrade the local SQLite database schema to Alembic head revision:
 # Verify schema migration via dry-run on a temporary SQLite instance
 uv run python scripts/migration_dry_run.py --database artifacts/app.sqlite
 
-# Or apply migrations directly to the local SQLite database file
+# Apply migrations directly to the local SQLite database file
 uv run alembic upgrade head
 ```
 
@@ -65,22 +66,13 @@ This writes:
 The image digest field is recorded honestly as `"N/A (local deployment, no container)"`. Never write a fake digest.
 
 ### Step 5: Start the Local API
-Launch the local API server using the provided start scripts:
-
-**On Windows (PowerShell):**
-```powershell
-powershell -ExecutionPolicy Bypass -File scripts/run_local.ps1
-```
-
-**On Linux / macOS (Bash):**
+Launch the local API server using `scripts/run_local.sh`:
 ```bash
 ./scripts/run_local.sh
 ```
+This script runs `uv sync --frozen`, creates `artifacts/deploy/`, and starts `uvicorn` bound strictly to `127.0.0.1` only, redirecting all server logs to `artifacts/deploy/uvicorn.log`.
 
-By default, the server listens at `http://127.0.0.1:8000`. Custom host and port can be passed as arguments:
-```powershell
-powershell -File scripts/run_local.ps1 -HostAddress 127.0.0.1 -Port 8080
-```
+Optional port can be passed as argument (e.g., `./scripts/run_local.sh 8080`), with host strictly retained as `127.0.0.1`.
 
 ### Step 6: Verify Local Endpoints
 - **Liveness Probe:** `GET http://127.0.0.1:8000/health/live`
@@ -88,11 +80,23 @@ powershell -File scripts/run_local.ps1 -HostAddress 127.0.0.1 -Port 8080
 - **Interactive OpenAPI Documentation:** `GET http://127.0.0.1:8000/docs`
 - **Static Dashboard UI:** `GET http://127.0.0.1:8000/ui` (when `web/src` is mounted)
 
+### Step 7: V99 24-Hour Soak Runner
+Launch the 24-hour unattended soak runner in the background using `scripts/v99_soak.sh`:
+```bash
+nohup ./scripts/v99_soak.sh > artifacts/v99/soak.log 2>&1 &
+```
+The runner executes the P0 daily flow every N minutes (default 60), logs cycles to `artifacts/v99/cycles.jsonl`, maintains a heartbeat file, and at or after 24h evaluates V99 criteria to write `artifacts/{run_id}/V99/` and `docs/decisions/mvp_acceptance.md`.
+
+To check progress and running tallies without interrupting:
+```bash
+uv run python scripts/v99_soak.py --status
+```
+
 ---
 
 ## 4. Release Gate & Security Governance
 
-- **AUTH-02 (Local Deploy Target):** Granted for local single-machine target only (`config/deploy.yaml`). Cloud and container deployments are prohibited.
+- **AUTH-02 (Deploy Target):** Granted for local single-machine deployment on a separate always-on Linux box (`config/deploy.yaml`). The owner's Windows PC was superseded because it shuts down nightly. Cloud and container deployments remain strictly prohibited.
 - **AUTH-06 (Local Release Approval):** Approved for local/self-hosted "v1.0 local release" only. Public internet exposure and outreach stay REFUSED.
-- **Container Images and `<PINNED_DIGEST>`:** Docker builds and container registry pushes are not used for local deployment; `<PINNED_DIGEST>` in the Dockerfile remains an unpinned placeholder because no container is built. Cloud deployment was previously blocked on AUTH-02; under Ticket DEC, AUTH-02 grants local single-machine deployment only.
-- **V99 Soak Testing:** 24-hour soak testing remains GATED pending a continuous run in the staging environment. Do not claim V99 until executed.
+- **Container Images and `<PINNED_DIGEST>`:** Docker builds and container registry pushes are not used; `<PINNED_DIGEST>` in the Dockerfile remains an unpinned placeholder because no container is built. The image digest stays `"N/A (local deployment, no container)"`.
+- **V99 Soak Testing:** Evaluated after a continuous 24-hour run on the dedicated always-on Linux box. Before 24h elapsed wall-clock time, PASS is strictly forbidden.

@@ -178,10 +178,11 @@ def get_gated_items(
             code="AUTH-02",
             title="AUTH-02 local target granted",
             reason=(
-                "Deploy target granted for local single-machine deployment on owner's PC "
-                "(SQLite, local uvicorn+O20 runner; no Docker, no Postgres, no cloud spend)."
+                "Deploy target granted for local single-machine deployment on separate "
+                "always-on Linux box (x86_64, Python via uv, SQLite, local uvicorn+O20 "
+                "runner; no Docker, no Postgres, no cloud spend)."
             ),
-            action_required="Local single-machine deployment authorized; cloud deploy refused.",
+            action_required="Dedicated Linux box deployment authorized; cloud deploy refused.",
         )
         if auth02_granted
         else GatedItem(
@@ -2389,7 +2390,8 @@ def generate_release_acceptance_markdown(result: GoNoGoResult) -> str:
             "All Section 10 quantitative thresholds, P0 implementation tasks, security controls, "
             "and delegated decisions (AUTH-02, AUTH-06, G20, M70, C30-31) have been verified. "
             "Production release is APPROVED for **local v1.0 release only** (single-machine "
-            "self-hosted deployment on the owner's PC using SQLite and local runner). Public "
+            "self-hosted deployment on separate always-on Linux box using SQLite "
+            "and local runner). Public "
             "deployment, cloud hosting, and external outreach remain strictly REFUSED. "
             "V99 soak testing remains GATED pending a 24-hour staging run."
         )

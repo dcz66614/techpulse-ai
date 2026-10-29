@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Starts the TechPulse-AI read-only API locally on the owner's PC.
+    Starts the TechPulse-AI read-only API locally (Windows development runner).
 .DESCRIPTION
-    Launches uvicorn serving techpulse.api.main:app on 127.0.0.1:8000
-    under the local single-machine deployment authorized by AUTH-02 / Ticket DEC.
+    Launches uvicorn serving techpulse.api.main:app on 127.0.0.1:8000.
+    Production deploy target is a separate always-on Linux box per AUTH-02 / Ticket DECbox.
 .PARAMETER HostAddress
     The interface to bind (default: 127.0.0.1).
 .PARAMETER Port

@@ -11,7 +11,7 @@
 
 ## 1. Executive Summary
 
-All Section 10 quantitative thresholds, P0 implementation tasks, security controls, and delegated decisions (AUTH-02, AUTH-06, G20, M70, C30-31) have been verified. Production release is APPROVED for **local v1.0 release only** (single-machine self-hosted deployment on the owner's PC using SQLite and local runner). Public deployment, cloud hosting, and external outreach remain strictly REFUSED. V99 soak testing remains GATED pending a 24-hour staging run.
+All Section 10 quantitative thresholds, P0 implementation tasks, security controls, and delegated decisions (AUTH-02, AUTH-06, G20, M70, C30-31) have been verified. Production release is APPROVED for **local v1.0 release only** (single-machine self-hosted deployment on separate always-on Linux box using SQLite and local runner; owner's PC was superseded under Ticket DECbox due to nightly shutdowns). Public deployment, cloud hosting, and external outreach remain strictly REFUSED. V99 soak testing remains GATED pending a 24-hour staging run.
 
 ## 2. Section 10 Quantitative Thresholds Matrix
 
@@ -105,7 +105,7 @@ No active blockers for staging release.
 
 | Code | Gated Item | Reason | Action Required |
 |---|---|---|---|
-| `AUTH-02` | AUTH-02 local target granted | Deploy target granted for local single-machine deployment on owner's PC (SQLite, local uvicorn+O20 runner; no Docker, no Postgres, no cloud spend). | Local single-machine deployment authorized; cloud deploy refused. |
+| `AUTH-02` | AUTH-02 local target granted | Deploy target granted for local single-machine deployment on separate always-on Linux box (x86_64, Python via uv, SQLite, local uvicorn+O20 runner; no Docker, no Postgres, no cloud spend; owner's PC superseded due to nightly shutdowns). | Dedicated Linux machine deployment authorized; cloud deploy refused. |
 | `AUTH-06` | AUTH-06 local release only | Approved for local/self-hosted v1.0 release only. No public outreach, no paid services. Public stays refused. | Local v1.0 release authorized; public outreach strictly refused. |
 | `V99` | V99 24h soak not run | 24-hour unattended soak testing has not been run; requires V90 gate approval first. | Trigger continuous 24h P0 run in staging environment after V90 sign-off. |
 | `M70` | M70 optional skipped_not_applicable | PEFT/LoRA fine-tuning experiment skipped; baseline hybrid retrieval meets Section 10 thresholds. | No action required for MVP; baseline models are sufficient. |

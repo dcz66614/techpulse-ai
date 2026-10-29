@@ -229,7 +229,8 @@ def evaluate_gate(target: str, *, qa_pass: bool, auth02_granted: bool) -> GateDe
 
 
 
-    AUTH-02 grants local single-machine deployment on the owner's PC only.
+    AUTH-02 grants local single-machine deployment on a separate always-on Linux box
+    (x86_64, Python via uv, no Docker, no Postgres) only.
 
     Any public, cloud, or external target is strictly refused.
 
@@ -318,7 +319,7 @@ def evaluate_gate(target: str, *, qa_pass: bool, auth02_granted: bool) -> GateDe
         return GateDecision(
             allowed=True,
             target=normalized,
-            reason="local release gate passed (local single-machine v1.0 authorized)",
+            reason="local release gate passed (dedicated Linux box v1.0 authorized)",
             staging_only=False,
             qa_pass=qa_pass,
             auth02_granted=auth02_granted,

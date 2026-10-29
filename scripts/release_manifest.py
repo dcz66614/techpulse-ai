@@ -2,7 +2,8 @@
 
 The image digest is "N/A (local deployment, no container)". Never write a fake digest.
 This script does not build an image, contact a registry, or deploy. It runs the
-SQLite migration dry-run and the local A10 smoke check, then records the release gate.
+SQLite migration dry-run and the local A10 smoke check, then records the release gate
+for the dedicated Linux machine target authorized by AUTH-02 (Ticket DECbox).
 """
 
 from __future__ import annotations

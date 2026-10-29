@@ -1751,3 +1751,51 @@ $ uv run pytest -q
 no `.env` read, and no push.
 910 passed, 1 deselected, 1 warning in 63.77s (0:01:03)
 ```
+
+## DECbox Linux box deploy target, V99 soak runner
+
+- Owner updated AUTH-02: the deploy target is now a separate always-on Linux machine (x86_64, Python via uv, no Docker, no Postgres), NOT the owner's Windows PC (reason: owner's PC shuts down nightly, preventing continuous 24h soak runs).
+- Updated `docs/decisions/auth02_deploy_target.md` (preserved decision history, noted change and nightly shutdown reason).
+- Updated `config/deploy.yaml`, `docs/deploy.md`, `scripts/release_manifest.py`, `src/techpulse/ops/release.py`, `src/techpulse/release/go_nogo.py`, and `docs/decisions/release_acceptance.md`. The container image digest remains "N/A (local deployment, no container)".
+- Provided `scripts/run_local.sh` (POSIX): runs `uv sync --frozen`, then starts uvicorn bound strictly to `127.0.0.1` only, logging to `artifacts/deploy/uvicorn.log`.
+- Implemented V99 24-hour unattended soak runner in `src/techpulse/ops/soak.py` with `scripts/v99_soak.py` and `scripts/v99_soak.sh` (POSIX, nohup-friendly):
+  - Low resource: triggers P0 daily flow every N minutes (default 60) through O20 local orchestrator.
+  - Collectors only for AUTH-04-enabled sources (`openalex`, `crossref`, `arxiv`, `github`, `hn`) respecting policy rate limits via `IntervalLimiter`.
+  - On network failure, records failure honestly in per-source success and cycle errors; never fakes success.
+  - Appends JSONL cycles to `artifacts/v99/cycles.jsonl` with timestamp, run_id, per-source success, duplicates written, cost (USD $0.00 for template steps), errors, QA results, reports published, and updates `heartbeat.json`.
+  - Resumes safely if restarted (idempotent via O20 SQLite checkpoints and recorded start time).
+  - At or after 24h of wall-clock time since recorded start, evaluates real cycles and writes `artifacts/{run_id}/V99/{soak_test,manifest,metrics}.json` and `docs/decisions/mvp_acceptance.md` with PASS/FAIL. Before 24h it must never write PASS.
+  - `--status` flag prints elapsed time and running tallies.
+- Added comprehensive unit tests in `tests/unit/test_v99_soak.py` using `ManualClock` and short intervals covering: no PASS before 24h, criteria computed from real cycles, failures recorded honestly, idempotency on restart, and status formatting.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.66ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+186 files already formatted
+
+$ uv run mypy
+Success: no issues found in 104 source files
+
+$ uv run pytest -q
+........................................................................ [  7%]
+........................................................................ [ 15%]
+........................................................................ [ 23%]
+........................................................................ [ 31%]
+........................................................................ [ 39%]
+........................................................................ [ 47%]
+........................................................................ [ 55%]
+........................................................................ [ 62%]
+........................................................................ [ 70%]
+........................................................................ [ 78%]
+........................................................................ [ 86%]
+........................................................................ [ 94%]
+....................................................                     [100%]
+916 passed, 1 deselected, 1 warning in 35.84s
+```
