@@ -1576,3 +1576,100 @@ $ uv run pytest -q
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 908 passed, 1 deselected, 1 warning in 30.43s
 ```
+
+## GQ Extended eval queries dev2/heldout (labels pending crosscheck)
+
+Ticket GQ on branch `laneb`, base commit `cf58095`. Owner decision: more
+evaluation queries from real corpus documents, split into dev/held-out.
+
+- Read the frozen I30 corpus and labelling guide plus the train/dev rows of
+  `data/gold/retrieval/queries.jsonl` as a format example. The sealed TEST
+  split rows were never opened, read, printed, or used; the same sealed row is
+  still present in the original file and its content was not read in this
+  ticket.
+- Wrote `data/gold/retrieval/queries_ext.jsonl`: 24 new queries grounded in
+  real corpus documents (12 English, 12 Chinese; 6 per topic), with graded
+  relevance labels 0-2 (includes explicit grade-0 hard negatives) and a
+  one-line `justification` quoting the labelled document text for each query.
+  No documents were invented and no retrieval run was used to choose labels.
+  Every row carries `labeller: "glm-5.3-flash-free (opencode)"` and
+  `crosscheck: "pending"`.
+- Split assignment is deterministic from the query text:
+  `dev2` when `int(sha256(query.encode("utf-8")).hexdigest(), 16) % 2 == 0`,
+  else `heldout`. Outcome: 13 dev2, 11 heldout.
+- `queries.jsonl` was not modified (40 rows; train/dev/test counter unchanged).
+- Extended the evaluation entry point read-only, without touching
+  `src/techpulse/index/*` or thresholds:
+  - `src/techpulse/evaluation/retrieval_metrics.py`: extracted the row
+    validator into public `judgement_from_row()` (no behaviour change).
+  - `src/techpulse/evaluation/split_eval.py` (new): `load_reportable_queries()`
+    drops raw rows whose split is not dev/dev2/heldout before labels are
+    validated (sealed TEST rows are never parsed as judgements),
+    `evaluate_by_split()` refuses any split outside dev/dev2/heldout,
+    `hybrid_retriever_for_corpus()`/`report_splits()` build the existing
+    hybrid retriever over corpus.jsonl in memory (no writes, no index
+    artifacts), and `format_report()` renders the per-split table.
+  - `python -m techpulse.evaluation.split_eval .` is the entry point.
+- Tests: `tests/evaluation/test_gq_split_eval.py` covers file shape and
+  schema, deterministic hash split rule and balance, labelled doc ids exist
+  in the corpus, dev2/heldout and original-set disjointness, sealed split
+  rejection, and a smoke run of `report_splits`. Test `report_splits` never
+  encounters a test-split query because the loader and
+  `evaluate_by_split` both reject it before the retriever is called.
+- Updated `docs/decisions/i30_gold_set.md` with the GQ extension protocol
+  (hash split rule, 0-2 scale, single annotator, held-out is never used for
+  tuning).
+- No network calls, no new dependencies, no retrieval-code changes, and the
+  sealed TEST split was never run.
+
+Real per-split metrics (existing hybrid retriever, hashed n-gram embedder):
+
+```text
+split   queries  nDCG@10  Recall@20   en(ndcg/recall)      zh(ndcg/recall)
+dev           8  0.8347   0.9167   0.8444/0.9167        0.8249/0.9167
+dev2         13  0.8333   1.0000   0.8753/1.0000        0.7662/1.0000
+heldout       11  0.8854   0.8182   0.9475/0.8750        0.8499/0.7857
+```
+
+`dev` matches the IRclean baseline in the previous entry (0.8347/0.9167),
+which confirms the entry point reproduces the existing measurement.
+Neither thresholds nor retrieval code changed; dev2/heldout numbers are
+diagnostic until the `crosscheck` second annotator pass.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.82ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+164 files already formatted
+
+$ uv run mypy
+Success: no issues found in 104 source files
+
+$ uv run pytest -q
+........................................................................ [  7%]
+........................................................................ [ 15%]
+........................................................................ [ 23%]
+........................................................................ [ 31%]
+........................................................................ [ 39%]
+........................................................................ [ 47%]
+........................................................................ [ 54%]
+........................................................................ [ 62%]
+........................................................................ [ 70%]
+........................................................................ [ 78%]
+........................................................................ [ 86%]
+........................................................................ [ 94%]
+......................................................                   [100%]
+============================== warnings summary ===============================
+..\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+918 passed, 1 deselected, 1 warning in 59.43s
+```

@@ -138,6 +138,43 @@ returns per-query results plus macro averages overall, by language, and by
 topic. Section 10 thresholds are `nDCG@10 >= 0.75` and `Recall@20 >= 0.85`;
 section 7.2 requires English and Chinese to pass independently.
 
+## GQ extension protocol (2026-10-29)
+
+Ticket GQ extends the evaluation set with a new file
+`data/gold/retrieval/queries_ext.jsonl` (24 queries) without touching the
+frozen I30 freeze record above. `queries.jsonl` is unchanged and keeps its
+`train` / `dev` / `test` layout; the sealed `test` split stays sealed.
+
+- **New splits.** The extension introduces `dev2` and `heldout`. They are
+  additional tuning-signal-free measurement splits, not a continuation of the
+  I30 free/consumer/test design.
+- **Assignment.** Each query's split is derived deterministically from its
+  text: `split = "dev2" if int(sha256(query.encode("utf-8")).hexdigest(), 16) % 2 == 0 else "heldout"`.
+  No manual choice was made per query.
+- **Scale.** Grades in the extension run 0-2 (2 = directly answers the query,
+  1 = marginal background, 0 = not relevant / hard negative). Grades are not
+  calibrated against the 0-3 I30 scale, so do not compare absolute numbers
+  across files.
+- **Provenance.** Each row carries a one-line `justification` quoting the
+  labelled document text and is answerable from `data/gold/retrieval/`
+  `corpus.jsonl` only. No documents were invented and no retrieval run was
+  used to choose labels.
+- **Single annotator.** The extension is a single-annotator pass by
+  `glm-5.3-flash-free (opencode)` recorded in each row's `labeller` field;
+  `crosscheck` is `"pending"` until an independent second pass resolves
+  disagreements. Until crosschecked, results on `dev2`/`heldout` are
+  diagnostic only.
+- **Held-out is never used for tuning.** The `heldout` split (and the sealed
+  I30 `test` split) is never used to tune thresholds, prompts, lexicons, or
+  retrievers. It is reported only alongside `dev`/`dev2`, after all tuning
+  decisions are frozen. `dev2` may be used for tuning.
+- **Sealed split safety.** `src/techpulse/evaluation/split_eval.py` is the
+  read-only per-split reporting entry point. It contains no threshold
+  constants of its own; it drops split values outside `dev` / `dev2` /
+  `heldout` from the raw JSON before labels are validated (so sealed `test`
+  rows are never parsed as judgements), and it raises if a sealed judgement
+  is ever passed to its evaluator.
+
 The real index is not merged in this batch, so no retrieval run was executed
 against it. To evaluate later, filter out the sealed test split first:
 

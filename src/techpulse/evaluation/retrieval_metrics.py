@@ -146,29 +146,32 @@ def load_gold_queries(path: Path) -> tuple[QueryJudgement, ...]:
             raise ValueError(f"{path}:{line_number}: invalid JSON") from exc
         if not isinstance(raw, dict):
             raise ValueError(f"{path}:{line_number}: expected a JSON object")
-        relevance_raw = raw.get("relevance")
-        if not isinstance(relevance_raw, dict):
-            raise ValueError(f"{path}:{line_number}: relevance must be an object")
-        relevance: dict[str, int] = {}
-        for doc_id, grade in relevance_raw.items():
-            if not isinstance(doc_id, str) or not doc_id:
-                raise ValueError(f"{path}:{line_number}: document ids must be non-empty strings")
-            if isinstance(grade, bool) or not isinstance(grade, int) or grade < 0:
-                raise ValueError(
-                    f"{path}:{line_number}: grade for {doc_id!r} must be a non-negative integer"
-                )
-            relevance[doc_id] = grade
-        queries.append(
-            QueryJudgement(
-                query_id=_require_text(raw, "query_id", path, line_number),
-                query=_require_text(raw, "query", path, line_number),
-                language=_require_text(raw, "language", path, line_number),
-                topic=_require_text(raw, "topic", path, line_number),
-                split=_require_text(raw, "split", path, line_number),
-                relevance=relevance,
-            )
-        )
+        queries.append(judgement_from_row(raw, path, line_number))
     return tuple(queries)
+
+
+def judgement_from_row(raw: Mapping[str, Any], path: Path, line_number: int) -> QueryJudgement:
+    """Build one validated :class:`QueryJudgement` from a parsed JSONL row."""
+    relevance_raw = raw.get("relevance")
+    if not isinstance(relevance_raw, dict):
+        raise ValueError(f"{path}:{line_number}: relevance must be an object")
+    relevance: dict[str, int] = {}
+    for doc_id, grade in relevance_raw.items():
+        if not isinstance(doc_id, str) or not doc_id:
+            raise ValueError(f"{path}:{line_number}: document ids must be non-empty strings")
+        if isinstance(grade, bool) or not isinstance(grade, int) or grade < 0:
+            raise ValueError(
+                f"{path}:{line_number}: grade for {doc_id!r} must be a non-negative integer"
+            )
+        relevance[doc_id] = grade
+    return QueryJudgement(
+        query_id=_require_text(raw, "query_id", path, line_number),
+        query=_require_text(raw, "query", path, line_number),
+        language=_require_text(raw, "language", path, line_number),
+        topic=_require_text(raw, "topic", path, line_number),
+        split=_require_text(raw, "split", path, line_number),
+        relevance=relevance,
+    )
 
 
 def _dedupe(ranked_ids: Sequence[str]) -> list[str]:
