@@ -1,8 +1,8 @@
 """Write artifacts/{run_id}/O10/release_manifest.json.
 
-The image digest is pending-AUTH-02. This script does not build an image,
-contact a registry, or deploy. It runs the SQLite migration dry-run and the
-local A10 smoke check, then records the release gate.
+The image digest is "N/A (local deployment, no container)". Never write a fake digest.
+This script does not build an image, contact a registry, or deploy. It runs the
+SQLite migration dry-run and the local A10 smoke check, then records the release gate.
 """
 
 from __future__ import annotations
@@ -11,7 +11,11 @@ import argparse
 import sys
 from pathlib import Path
 
-from techpulse.ops.release import repository_root, write_release
+from techpulse.ops.release import (
+    LOCAL_IMAGE_DIGEST,
+    repository_root,
+    write_release,
+)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -30,6 +34,7 @@ def main(argv: list[str] | None = None) -> int:
             artifacts_dir=artifacts,
             qa_manifest=args.qa_manifest,
             config_path=args.config,
+            image_digest=LOCAL_IMAGE_DIGEST,
         )
     except (OSError, ValueError) as exc:
         print(f"release_manifest: {exc}", file=sys.stderr)

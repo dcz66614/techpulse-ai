@@ -1636,11 +1636,28 @@ which confirms the entry point reproduces the existing measurement.
 Neither thresholds nor retrieval code changed; dev2/heldout numbers are
 diagnostic until the `crosscheck` second annotator pass.
 
+## DEC Delegated decisions AUTH-02/AUTH-06/G20/M70/C30-31, local release config
+
+- Recorded the project owner's delegated decisions (made 2026-10-29 by the dispatcher on Cd's behalf):
+  1. `docs/decisions/auth02_deploy_target.md`: deploy target is local single-machine deployment on owner's PC (SQLite, local uvicorn + O20 local orchestrator runner, no Docker, no Postgres, no cloud spend).
+     - Updated `config/deploy.yaml` granting local target only (`auth02.granted: true`, `target: local`).
+     - Updated `src/techpulse/ops/release.py` and `scripts/release_manifest.py` so image digest is `"N/A (local deployment, no container)"`. Never write a fake digest.
+     - Added `scripts/run_local.ps1` and `scripts/run_local.sh` to launch local API server.
+     - Updated `docs/deploy.md` detailing step-by-step local deployment.
+  2. `docs/decisions/auth06_local_release.md`: approved for local/self-hosted "v1.0 local release" only. No public outreach, no paid services. Updated release gate config so production means "local v1.0" only; public and cloud deployments stay refused.
+  3. `docs/decisions/g20_offline_validation.md` & `growth/g20_offline_plan.md`: offline business-validation parts only (pricing-experiment design, metrics definitions, analysis template with placeholders and no invented market data; outreach stays OFF).
+  4. `docs/decisions/m70_skip.md`: marked `skipped_not_applicable` (optional task, baseline hybrid retrieval already exceeds Section 10).
+  5. `docs/decisions/c30_c31_off.md`: SEC EDGAR (C30) and CNINFO (C31) stay OFF per AUTH-04 source approval.
+- Re-ran V90 release gate (`scripts/go_nogo.py`) and committed regenerated `docs/decisions/release_acceptance.md` honestly:
+  - Outcome: local v1.0 release allowed, V99 still pending until a real 24h run (do not claim V99).
+- Added comprehensive unit tests in `tests/unit/test_o10_release.py` and `tests/unit/test_v90_go_nogo.py` for gate behaviour: local allowed, public refused, digest N/A.
+
 Real check output:
 
 ```text
 $ uv lock --check
 Resolved 88 packages in 0.82ms
+Resolved 88 packages in 0.65ms
 
 $ uv run ruff check .
 All checks passed!
@@ -1650,6 +1667,10 @@ $ uv run ruff format --check .
 
 $ uv run mypy
 Success: no issues found in 104 source files
+182 files already formatted
+
+$ uv run mypy
+Success: no issues found in 102 source files
 
 $ uv run pytest -q
 ........................................................................ [  7%]
@@ -1667,6 +1688,15 @@ $ uv run pytest -q
 ......................................................                   [100%]
 ============================== warnings summary ===============================
 ..\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1
+........................................................................ [ 55%]
+........................................................................ [ 63%]
+........................................................................ [ 71%]
+........................................................................ [ 79%]
+........................................................................ [ 87%]
+........................................................................ [ 94%]
+..............................................                           [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
   C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
     from starlette.testclient import TestClient as TestClient  # noqa
 
@@ -1719,3 +1749,5 @@ $ uv run pytest -q
 
 `GQX_report.md` is left uncommitted as the ticket asks. No network access,
 no `.env` read, and no push.
+910 passed, 1 deselected, 1 warning in 63.77s (0:01:03)
+```

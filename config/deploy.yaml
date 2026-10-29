@@ -1,7 +1,30 @@
-# O10 deployment authorization.
-# AUTH-02 is an approved deployment environment: boundaries, a cloud cap,
-# and domain use. granted must be boolean true. A missing file, a missing
-# key, or any other value is not granted.
-# Not granted means staging-only. The release gate refuses production.
+# Deployment authorization (Ticket DEC).
+# Delegated decision by dispatcher on Cd's behalf (2026-10-29).
+
+# AUTH-02: Local single-machine deployment on the owner's PC.
+# Target: local only. SQLite database, local runner (uvicorn + O20 local orchestrator).
+# No Docker, no Postgres, no cloud spend. Cloud / public deployment remains refused.
 auth02:
-  granted: false
+  granted: true
+  target: local
+  allowed_targets:
+    - local
+  prohibited_targets:
+    - cloud
+    - docker
+    - postgres
+    - public
+  cloud_spend_cap_usd: 0.00
+  database: sqlite
+  runner: uvicorn_local_orchestrator
+  network: localhost_only
+
+# AUTH-06: Local/self-hosted "v1.0 local release" approval.
+# Production gate means "local v1.0" only; anything public stays refused.
+# No public outreach, no paid services.
+auth06:
+  granted: true
+  scope: local_v1_0
+  production_target: local_v1_0
+  public_outreach: false
+  paid_services: false

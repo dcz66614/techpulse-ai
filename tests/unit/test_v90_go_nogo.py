@@ -107,7 +107,7 @@ def test_v90_real_evaluation_honest_reporting(tmp_path: Path) -> None:
     # Verify release_acceptance.md contents
     markdown = written["release_acceptance"].read_text(encoding="utf-8")
     assert "staging READY" in markdown
-    assert "AUTH-02 deploy pending" in markdown
+    assert "AUTH-02 local target granted" in markdown
     assert "AUTH-06 production sign-off pending" in markdown
     assert "V99 24h soak not run" in markdown
     assert "M70 optional skipped_not_applicable" in markdown
@@ -325,3 +325,33 @@ def test_v90_run_go_nogo_persists_expected_files(tmp_path: Path) -> None:
     assert (artifacts_dir / run_id / "V90" / "metrics.json").is_file()
     assert (artifacts_dir / run_id / "V90" / "manifest.json").is_file()
     assert (test_repo / "docs" / "decisions" / "release_acceptance.md").is_file()
+
+
+def test_v90_gate_behaviour_local_allowed_public_refused(tmp_path: Path) -> None:
+    """Verifies V90 gate behaviour: local allowed, public refused, digest N/A."""
+    artifacts_dir = tmp_path / "artifacts"
+    # When evaluated with default config (AUTH-02 granted, AUTH-06 granted for local release):
+    result = evaluate_go_nogo(root=ROOT, artifacts_dir=artifacts_dir)
+    assert result.release_status == "production READY"
+    assert result.staging_allowed is True
+    assert result.production_allowed is True
+    assert result.auth02_granted is True
+    assert result.auth06_granted is True
+    assert len(result.blockers) == 0
+
+    # Verify gated items show local release authorized and V99 still pending
+    gated_by_code = {g.code: g for g in result.gated_items}
+    assert gated_by_code["AUTH-02"].title == "AUTH-02 local target granted"
+    assert gated_by_code["AUTH-06"].title == "AUTH-06 local release only"
+    assert gated_by_code["V99"].title == "V99 24h soak not run"
+    assert gated_by_code["M70"].title == "M70 optional skipped_not_applicable"
+    assert gated_by_code["C30_C31"].title == "C30/C31 off"
+    assert gated_by_code["G20"].title == "G20 offline validation only"
+
+    # Verify release acceptance doc explicitly allows local v1.0 and refuses public
+    written = write_release_artifacts(result, artifacts_dir, tmp_path)
+    md = written["release_acceptance"].read_text(encoding="utf-8")
+    assert "production READY" in md
+    assert "Production Deployment Allowed:** `True`" in md
+    assert "Local v1.0 release only; public deployment & outreach REFUSED" in md
+    assert "V99 24h soak not run" in md

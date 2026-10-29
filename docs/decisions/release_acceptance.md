@@ -1,17 +1,17 @@
 # Decision: TechPulse-AI Staging Release Acceptance and Security Sign-off (V90)
 
 - **Ticket:** `V90`
-- **Run ID:** `v90-20261029T015021Z`
-- **Generated At:** `2026-10-29T01:50:21.374926+00:00`
-- **Release Status:** **staging READY**
+- **Run ID:** `v90-20261029T120754Z`
+- **Generated At:** `2026-10-29T12:07:54.764060+00:00`
+- **Release Status:** **production READY**
 - **Staging Deployment Allowed:** `True`
-- **Production Deployment Allowed:** `False`
-- **AUTH-02 (Staging Env):** `Pending`
-- **AUTH-06 (Production Sign-off):** `Pending`
+- **Production Deployment Allowed:** `True`
+- **AUTH-02 (Staging Env):** `Granted (local single-machine only)`
+- **AUTH-06 (Production Sign-off):** `Granted (local v1.0 release only; public outreach REFUSED)`
 
 ## 1. Executive Summary
 
-All Section 10 quantitative thresholds and all P0 implementation tasks have passed verification. Permissions, egress constraints, lawful data sources under AUTH-04, pricing model router safeguards, and zero secret/privilege-escalation checks are verified clean. Because AUTH-06 (production sign-off) has not been granted, release authorization is strictly **staging READY** only. Cloud deployment to production is REFUSED.
+All Section 10 quantitative thresholds, P0 implementation tasks, security controls, and delegated decisions (AUTH-02, AUTH-06, G20, M70, C30-31) have been verified. Production release is APPROVED for **local v1.0 release only** (single-machine self-hosted deployment on the owner's PC using SQLite and local runner). Public deployment, cloud hosting, and external outreach remain strictly REFUSED. V99 soak testing remains GATED pending a 24-hour staging run.
 
 ## 2. Section 10 Quantitative Thresholds Matrix
 
@@ -105,17 +105,17 @@ No active blockers for staging release.
 
 | Code | Gated Item | Reason | Action Required |
 |---|---|---|---|
-| `AUTH-02` | AUTH-02 deploy pending | Deployment authorization is not granted in config/deploy.yaml; staging templates only; production deploy refused. | Requires user authorization of deployment boundary and budget before cloud deployment. |
-| `AUTH-06` | AUTH-06 production sign-off pending | User traceable sign-off for production release is absent; result capped at staging READY. | Production rollout requires user traceable approval (AUTH-06). |
+| `AUTH-02` | AUTH-02 local target granted | Deploy target granted for local single-machine deployment on owner's PC (SQLite, local uvicorn+O20 runner; no Docker, no Postgres, no cloud spend). | Local single-machine deployment authorized; cloud deploy refused. |
+| `AUTH-06` | AUTH-06 local release only | Approved for local/self-hosted v1.0 release only. No public outreach, no paid services. Public stays refused. | Local v1.0 release authorized; public outreach strictly refused. |
 | `V99` | V99 24h soak not run | 24-hour unattended soak testing has not been run; requires V90 gate approval first. | Trigger continuous 24h P0 run in staging environment after V90 sign-off. |
 | `M70` | M70 optional skipped_not_applicable | PEFT/LoRA fine-tuning experiment skipped; baseline hybrid retrieval meets Section 10 thresholds. | No action required for MVP; baseline models are sufficient. |
 | `C30_C31` | C30/C31 off | SEC EDGAR (C30) and CNINFO (C31) optional connectors disabled per AUTH-04 source approval. | Keep disabled until Cd (AUTH-04) approves Phase 2 expansion. |
-| `G20` | G20 needs AUTH-06 | 30/90-day commercial validation and price experiments require AUTH-06 before external outreach. | Obtain AUTH-06 sign-off prior to external sending of sample reports or pricing surveys. |
+| `G20` | G20 offline validation only | 30/90-day commercial validation and price experiments approved for offline business-validation only. External outreach stays OFF. | Offline business validation plan active; external outreach disabled. |
 
 ## 7. Signatures and Release Authority
 
 - **Responsible Agent:** `QAAgent` (Section 9 #### V90)
-- **Gate Evaluation:** `staging READY`
+- **Gate Evaluation:** `production READY`
 - **Staging Gate:** APPROVED
-- **Production Gate:** REFUSED (Pending AUTH-06 user traceable sign-off)
+- **Production Gate:** APPROVED (Local v1.0 release only; public deployment & outreach REFUSED)
 
