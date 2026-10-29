@@ -43,7 +43,7 @@ class _CountingEmbedder:
     def __init__(self) -> None:
         self.calls = 0
         self.model_id = "hashed-char-ngram-tf"
-        self.model_version = "1"
+        self.model_version = "2"
         self.dimension = VECTOR_DIMENSION
         self.calls_network = False
         self._inner = HashedNgramEmbedder()
@@ -150,7 +150,7 @@ def test_hundred_rows_match_deduped_input_and_replay_is_idempotent() -> None:
         _assert_vector_columns(database)
         manifest = _read_json(artifacts / "i10-hundred" / "I10" / "index_manifest.json")
         assert manifest["model_id"] == "hashed-char-ngram-tf"
-        assert manifest["model_version"] == "1"
+        assert manifest["model_version"] == "2"
         assert manifest["postgres_target"] == "pgvector"
         assert manifest["vector_store"] == "sqlite"
         assert manifest["explain_plan"] == "not_run_no_postgresql"
@@ -654,7 +654,7 @@ def _assert_vector_columns(database: Path) -> None:
     assert len(rows) == 100
     for row in rows:
         assert row["model_id"] == "hashed-char-ngram-tf"
-        assert row["model_version"] == "1"
+        assert row["model_version"] == "2"
         assert isinstance(row["content_sha256"], str) and len(row["content_sha256"]) == 64
         assert isinstance(row["vector_sha256"], str) and len(row["vector_sha256"]) == 64
         assert isinstance(row["vector_id"], str) and len(row["vector_id"]) == 64

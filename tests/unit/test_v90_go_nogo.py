@@ -25,29 +25,27 @@ def test_v90_real_evaluation_honest_reporting(tmp_path: Path) -> None:
     result = evaluate_go_nogo(root=ROOT, artifacts_dir=artifacts_dir, auth06_granted=False)
 
     assert result.ticket == "V90"
-    # Real dev-split retrieval (nDCG@10=0.4815, Recall@20=0.7083) honestly fails MVP thresholds
-    assert result.release_status == "BLOCKED"
-    assert result.staging_allowed is False
+    # Real dev-split retrieval (nDCG@10=0.8771, Recall@20=0.9583) honestly meets MVP thresholds
+    assert result.release_status == "staging READY"
+    assert result.staging_allowed is True
     assert result.production_allowed is False
     assert result.auth06_granted is False
-    assert len(result.blockers) == 2
-    assert any("nDCG@10" in b for b in result.blockers)
-    assert any("Recall@20" in b for b in result.blockers)
+    assert len(result.blockers) == 0
 
     # Verify the 6 gated items are present
     assert len(result.gated_items) == 6
     gated_codes = {g.code for g in result.gated_items}
     assert gated_codes == {"AUTH-02", "AUTH-06", "V99", "M70", "C30_C31", "G20"}
 
-    # Verify Section 10 thresholds: 11 PASS, 2 FAIL (retrieval dev split), 1 GATED (V99 soak)
+    # Verify Section 10 thresholds: 13 PASS, 0 FAIL, 1 GATED (V99 soak)
     passed_thresholds = [c for c in result.section_10_thresholds if c.status == CheckStatus.PASS]
     gated_thresholds = [c for c in result.section_10_thresholds if c.status == CheckStatus.GATED]
     failed_thresholds = [c for c in result.section_10_thresholds if c.status == CheckStatus.FAIL]
     not_measured = [c for c in result.section_10_thresholds if c.status == CheckStatus.NOT_MEASURED]
 
-    assert len(passed_thresholds) == 11
+    assert len(passed_thresholds) == 13
     assert len(gated_thresholds) == 1
-    assert len(failed_thresholds) == 2
+    assert len(failed_thresholds) == 0
     assert len(not_measured) == 0
     assert gated_thresholds[0].responsible_task == "V99"
 
@@ -56,8 +54,8 @@ def test_v90_real_evaluation_honest_reporting(tmp_path: Path) -> None:
     assert thresholds_by_name["正文抽取成功率（可获取内容分母）"].observed == "100.0%"
     assert thresholds_by_name["必填字段完整率"].observed == "100.0%"
     assert thresholds_by_name["Precision / Recall"].observed == "1.0000 / 1.0000"
-    assert thresholds_by_name["nDCG@10"].observed == "0.4815"
-    assert thresholds_by_name["Recall@20"].observed == "0.7083"
+    assert thresholds_by_name["nDCG@10"].observed == "0.8771"
+    assert thresholds_by_name["Recall@20"].observed == "0.9583"
     assert thresholds_by_name["Claim 引用覆盖"].observed == "100.0%"
     assert thresholds_by_name["URL 可追溯"].observed == "100.0%"
     assert thresholds_by_name["日期/数值一致"].observed == "100.0%"
@@ -98,7 +96,7 @@ def test_v90_real_evaluation_honest_reporting(tmp_path: Path) -> None:
 
     # Verify manifest integrity
     manifest = json.loads(written["manifest"].read_text(encoding="utf-8"))
-    assert manifest["status"] == "BLOCKED"
+    assert manifest["status"] == "staging READY"
     assert manifest["ticket"] == "V90"
     for item in manifest["artifacts"]:
         name = Path(item["path"]).name
@@ -108,7 +106,7 @@ def test_v90_real_evaluation_honest_reporting(tmp_path: Path) -> None:
 
     # Verify release_acceptance.md contents
     markdown = written["release_acceptance"].read_text(encoding="utf-8")
-    assert "BLOCKED" in markdown
+    assert "staging READY" in markdown
     assert "AUTH-02 deploy pending" in markdown
     assert "AUTH-06 production sign-off pending" in markdown
     assert "V99 24h soak not run" in markdown

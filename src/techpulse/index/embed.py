@@ -33,6 +33,7 @@ import httpx
 
 from techpulse.contracts import LicenseStatus, TaskStatus
 from techpulse.governance.pii import contains_pii
+from techpulse.index.bm25 import tokenize
 from techpulse.normalize.clean import normalize_language
 from techpulse.workflows.activities import ObjectStore
 
@@ -84,7 +85,7 @@ class HashedNgramEmbedder:
 
     def __init__(self) -> None:
         self.model_id = "hashed-char-ngram-tf"
-        self.model_version = "1"
+        self.model_version = "2"
         self.dimension = VECTOR_DIMENSION
         self.calls_network = False
 
@@ -553,18 +554,18 @@ def load_active_corpus(database: Path) -> ActiveCorpus:
 
 
 def _embed_hashed(text: str) -> list[float]:
-    folded = text.casefold()
+    tokens = tokenize(text)
+    expanded = text + " " + " ".join(tokens)
+    folded = expanded.casefold()
     counts = [0.0] * VECTOR_DIMENSION
-    if len(folded) < NGRAM_SIZE:
-        grams: tuple[str, ...] = (folded,) if folded else (" ",)
-    else:
-        grams = tuple(
-            folded[index : index + NGRAM_SIZE] for index in range(len(folded) - NGRAM_SIZE + 1)
-        )
-    for gram in grams:
-        digest = hashlib.sha256(gram.encode("utf-8")).digest()
-        bucket = int.from_bytes(digest[:4], "little") % VECTOR_DIMENSION
-        counts[bucket] += 1.0
+    for n in (2, 3, 4):
+        if len(folded) < n:
+            continue
+        for index in range(len(folded) - n + 1):
+            gram = folded[index : index + n]
+            digest = hashlib.sha256(gram.encode("utf-8")).digest()
+            bucket = int.from_bytes(digest[:4], "little") % VECTOR_DIMENSION
+            counts[bucket] += 1.0
     norm = math.sqrt(sum(value * value for value in counts))
     if norm == 0.0:
         return counts
@@ -1035,7 +1036,11 @@ def _manifest(
             {
                 "languages": ["zh", "en"],
                 "model_id": "hashed-char-ngram-tf",
-                "reason": "deterministic character n-gram hashing; no downloaded weights",
+                "model_version": embedder.model_version,
+                "reason": (
+                    "deterministic multi-scale character n-gram hashing with cross-lingual "
+                    "tokenization; no downloaded weights"
+                ),
                 "selected": isinstance(embedder, HashedNgramEmbedder),
             },
             {
@@ -1061,6 +1066,10 @@ def _manifest(
         "ticket": "I10",
         "vector_ids": [item.vector_id for item in rows],
         "vector_store": "sqlite",
+        "version_changelog": (
+            "v2: multi-scale character n-gram hashing with bilingual tokenization "
+            "for cross-lingual retrieval"
+        ),
     }
 
 
@@ -1123,6 +1132,7 @@ def _emit(
         "explain_plan": "not_run_no_postgresql",
         "index_version": index_version,
         "model_id": extra.get("model_id"),
+        "model_version": extra.get("model_version"),
         "note": note,
         "origin": origin,
         "postgres_target": "pgvector",

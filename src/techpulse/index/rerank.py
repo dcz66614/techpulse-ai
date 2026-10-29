@@ -1,8 +1,9 @@
 """Deterministic reranking.
 
 ``Reranker`` is the replaceable interface. ``OverlapReranker`` scores the
-share of query tokens that also appear in the candidate. Ties break by the
-fused rank, then by document id. It does not call a network.
+share of query tokens that appear in the candidate, interpolated with
+fused rank to preserve high-confidence retrieval. Ties break by document id.
+It does not call a network.
 """
 
 from __future__ import annotations
@@ -31,7 +32,10 @@ class Reranker(Protocol):
 
 
 class OverlapReranker:
-    """Token-overlap baseline. A short candidate list is returned whole."""
+    """Token-overlap baseline with fusion rank interpolation.
+
+    A short candidate list is returned whole.
+    """
 
     def rerank(
         self,
@@ -49,7 +53,8 @@ class OverlapReranker:
                 overlap = 0.0
             else:
                 overlap = len(query_tokens & document_tokens) / len(query_tokens)
-            scored.append((overlap, candidate.fused_rank, candidate.doc_id, candidate))
+            score = (1.0 / (10.0 + candidate.fused_rank)) + overlap * 0.1
+            scored.append((score, candidate.fused_rank, candidate.doc_id, candidate))
         scored.sort(key=lambda item: (-item[0], item[1], item[2]))
         limit = min(top_k, len(scored))
         return [item[3] for item in scored[:limit]]

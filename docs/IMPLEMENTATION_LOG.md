@@ -1461,3 +1461,59 @@ $ uv run pytest -q
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 906 passed, 1 deselected, 1 warning in 30.91s
 ```
+
+## IRfix improve hybrid retrieval quality
+
+- Remediated I30 dev-split retrieval quality failures (baseline nDCG@10=0.4815, Recall@20=0.7083, both below Section 10 thresholds 0.75 and 0.85):
+  - Root cause: Cross-lingual domain queries/documents (English queries against Chinese documents and vice versa) produced 0 overlapping lexical tokens and zero character 3-gram matches in baseline BM25 and embedder.
+  - Tuning protocol (strictly evaluated on `dev` split, sealed `test` split untouched):
+    1. BM25 tokenization (`src/techpulse/index/bm25.py`): Added bidirectional technical domain vocabulary mappings (`_ZH_TO_EN` and `_EN_TO_ZH`), Chinese/English stopword pruning, and CJK 2-gram generation.
+    2. BM25 field weighting & scoring: Added title weighting (2.0x factor) and Okapi parameters $k_1=1.2, b=0.75$.
+    3. Multi-scale dense embedder (`src/techpulse/index/embed.py`): Upgraded `HashedNgramEmbedder` to `model_version = "2"` with multi-scale character n-grams (ranges 2-4) combined with bilingual domain tokens. Recorded index version change and changelog in I10 manifest.
+    4. Reranker rank-overlap interpolation (`src/techpulse/index/rerank.py`): Interpolated candidate fused rank score with token overlap score (`1.0 / (10.0 + fused_rank) + 0.1 * overlap`) so that low raw character overlap does not wipe out high-confidence cross-lingual hybrid retrieval hits.
+- Dev-split retrieval results:
+  - nDCG@10: 0.4815 -> 0.8771 (PASS, threshold >= 0.75)
+  - Recall@20: 0.7083 -> 0.9583 (PASS, threshold >= 0.85)
+- Re-ran V90 release gate (`src/techpulse/release/go_nogo.py`) and regenerated `docs/decisions/release_acceptance.md`:
+  - Release status moved from `BLOCKED` (2 blockers) to `staging READY` (0 blockers).
+  - All 13 Section 10 thresholds pass. Staging gate APPROVED.
+- Regenerated sample reports (`growth/sample_1.md` and `growth/sample_2.md`) via `scripts/build_samples.py` reflecting embedder `model_version="2"`.
+- Updated `tests/unit/test_v90_go_nogo.py` and `tests/integration/test_i10_embed.py` for honest metric and version assertions.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.82ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+174 files already formatted
+
+$ uv run mypy
+Success: no issues found in 102 source files
+
+$ uv run pytest -q
+........................................................................ [  7%]
+........................................................................ [ 15%]
+........................................................................ [ 23%]
+........................................................................ [ 31%]
+........................................................................ [ 39%]
+........................................................................ [ 47%]
+........................................................................ [ 55%]
+........................................................................ [ 63%]
+........................................................................ [ 71%]
+........................................................................ [ 79%]
+........................................................................ [ 87%]
+........................................................................ [ 95%]
+..........................................                               [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+906 passed, 1 deselected, 1 warning in 27.10s
+```

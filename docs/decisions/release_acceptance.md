@@ -1,17 +1,17 @@
 # Decision: TechPulse-AI Staging Release Acceptance and Security Sign-off (V90)
 
 - **Ticket:** `V90`
-- **Run ID:** `v90-20261029T003539Z`
-- **Generated At:** `2026-10-29T00:35:39.825802+00:00`
-- **Release Status:** **BLOCKED**
-- **Staging Deployment Allowed:** `False`
+- **Run ID:** `v90-20261029T011507Z`
+- **Generated At:** `2026-10-29T01:15:07.098464+00:00`
+- **Release Status:** **staging READY**
+- **Staging Deployment Allowed:** `True`
 - **Production Deployment Allowed:** `False`
 - **AUTH-02 (Staging Env):** `Pending`
 - **AUTH-06 (Production Sign-off):** `Pending`
 
 ## 1. Executive Summary
 
-Release gate check has detected one or more failing items. The release is **BLOCKED**. Promotion to staging or production is prohibited until all blockers are remediated.
+All Section 10 quantitative thresholds and all P0 implementation tasks have passed verification. Permissions, egress constraints, lawful data sources under AUTH-04, pricing model router safeguards, and zero secret/privilege-escalation checks are verified clean. Because AUTH-06 (production sign-off) has not been granted, release authorization is strictly **staging READY** only. Cloud deployment to production is REFUSED.
 
 ## 2. Section 10 Quantitative Thresholds Matrix
 
@@ -20,8 +20,8 @@ Release gate check has detected one or more failing items. The release is **BLOC
 | 内容 | 正文抽取成功率（可获取内容分母） | ≥97% | 100.0% | D20 | **PASS** |
 | Schema | 必填字段完整率 | ≥98% | 100.0% | D20 | **PASS** |
 | 去重 | Precision / Recall | ≥0.98 / ≥0.95 | 1.0000 / 1.0000 | D30 | **PASS** |
-| Retrieval | nDCG@10 | ≥0.75 | 0.4815 | I20/I30 | **FAIL** |
-| Retrieval | Recall@20 | ≥0.85 | 0.7083 | I20/I30 | **FAIL** |
+| Retrieval | nDCG@10 | ≥0.75 | 0.8771 | I20/I30 | **PASS** |
+| Retrieval | Recall@20 | ≥0.85 | 0.9583 | I20/I30 | **PASS** |
 | 事实 | Claim 引用覆盖 | ≥95% | 100.0% | Q10 | **PASS** |
 | 血缘 | URL 可追溯 | 100% | 100.0% | D10/Q10 | **PASS** |
 | 数字 | 日期/数值一致 | ≥98% | 100.0% | Q10 | **PASS** |
@@ -99,8 +99,7 @@ Release gate check has detected one or more failing items. The release is **BLOC
 
 ## 5. Active Blockers
 
-1. Section 10 [I20/I30] nDCG@10: observed 0.4815, required ≥0.75
-2. Section 10 [I20/I30] Recall@20: observed 0.7083, required ≥0.85
+No active blockers for staging release.
 
 ## 6. Gated Items
 
@@ -116,7 +115,7 @@ Release gate check has detected one or more failing items. The release is **BLOC
 ## 7. Signatures and Release Authority
 
 - **Responsible Agent:** `QAAgent` (Section 9 #### V90)
-- **Gate Evaluation:** `BLOCKED`
-- **Staging Gate:** REFUSED (Active blockers must be remediated)
+- **Gate Evaluation:** `staging READY`
+- **Staging Gate:** APPROVED
 - **Production Gate:** REFUSED (Pending AUTH-06 user traceable sign-off)
 

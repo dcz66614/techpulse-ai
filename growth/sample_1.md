@@ -22,7 +22,7 @@
 - llm_calls: 0
 - paid_api_calls: 0
 - third_party_writes: 0
-- source_version: a0fbd89b628d7e9f53b44869908676bcf308aa4d9960ec47d086a21ba3519267
+- source_version: a85710168195f422a742cfef4b9865340fc47c65edb896f909e55801147e189b
 - q10_status: pass
 - qa_pass: true
 - release_status: PASS
@@ -91,8 +91,8 @@ ev_ff96506fde69d09124dadb7cc1b9572e | https://example.org/openalex/rag-a | a1181
 - 提示词/模型版本：render-v1/none
 - 状态：success
 - run_id：g10-fixture-sample-1
-- source_version：a0fbd89b628d7e9f53b44869908676bcf308aa4d9960ec47d086a21ba3519267
-- contradictions：83d5f158dd1c9b2e26c5f9d0ecd09948e60dbc195b6f482e55e4f7d36a5f530a
+- source_version：a85710168195f422a742cfef4b9865340fc47c65edb896f909e55801147e189b
+- contradictions：b7363b87a65953305ecba06b4ae3398304ebb14975eb05ab1e0b5a688e762663
 - draft：d708813d7cec1cfc5be067bdffe39c58584fa01897cfe0f4664f033604ffabc9
 - entities：94aa492012d36a47c71941852b1081f62990daa15a92257522bc80c94b780858
 - evidence_pack：f9554dd76c64b9e52bee7dd45fd7a843a0e784f81a148260914771328942fac5
@@ -189,8 +189,8 @@ ev_ff96506fde69d09124dadb7cc1b9572e | https://example.org/openalex/rag-a | a1181
 - 提示词/模型版本：render-v1/none
 - 状态：success
 - run_id：g10-fixture-sample-1
-- source_version：a0fbd89b628d7e9f53b44869908676bcf308aa4d9960ec47d086a21ba3519267
-- contradictions：83d5f158dd1c9b2e26c5f9d0ecd09948e60dbc195b6f482e55e4f7d36a5f530a
+- source_version：a85710168195f422a742cfef4b9865340fc47c65edb896f909e55801147e189b
+- contradictions：b7363b87a65953305ecba06b4ae3398304ebb14975eb05ab1e0b5a688e762663
 - draft：d708813d7cec1cfc5be067bdffe39c58584fa01897cfe0f4664f033604ffabc9
 - entities：94aa492012d36a47c71941852b1081f62990daa15a92257522bc80c94b780858
 - evidence_pack：f9554dd76c64b9e52bee7dd45fd7a843a0e784f81a148260914771328942fac5
