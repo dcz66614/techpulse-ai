@@ -5,6 +5,10 @@ tasks, S20 egress and least privilege, price snapshot, lawful data-source
 use (S10 registry; sec_edgar/cninfo/rss disabled per AUTH-04), and zero
 secret/privilege-escalation events.
 
+Every threshold is computed from real committed data or artifacts, or by
+running the relevant evaluators. Missing inputs result in NOT_MEASURED (a blocker),
+never default passing values.
+
 Without AUTH-06, the release status is capped at 'staging READY', never
 production.
 """
@@ -14,6 +18,9 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
+import sys
+import tempfile
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -23,7 +30,24 @@ from typing import Any
 
 import yaml
 
+from techpulse.evaluation.retrieval_metrics import evaluate, load_gold_queries
+from techpulse.evidence.retrieve import clusters_from_dedup
+from techpulse.evidence.verify import build_evidence_pack
+from techpulse.index.embed import ActiveCorpus, CorpusDocument, HashedNgramEmbedder
+from techpulse.index.hybrid import retrieve, system_ranking
+from techpulse.normalize.clean import clean_ndjson
 from techpulse.normalize.dedup import deduplicate_records, pairwise_metrics
+from techpulse.redteam import run_suite
+from techpulse.reports.draft import draft_report
+from techpulse.reports.qa import review_report
+from techpulse.trends.features import build_features
+from techpulse.trends.score import score_trends
+
+try:
+    from tests.integration.collector_fixtures import load_fixture_records, ndjson_bytes
+except ImportError:
+    load_fixture_records = None  # type: ignore[assignment]
+    ndjson_bytes = None  # type: ignore[assignment]
 
 TICKET = "V90"
 POLICY_VERSION = "policy-2026-10-27"
@@ -35,6 +59,8 @@ class CheckStatus(StrEnum):
     PASS = "PASS"
     FAIL = "FAIL"
     GATED = "GATED"
+    NOT_MEASURED = "NOT_MEASURED"
+    NOT_VERIFIED = "NOT_VERIFIED"
 
 
 @dataclass(frozen=True)
@@ -215,10 +241,14 @@ class GoNoGoResult:
         gated_thresholds = sum(
             1 for c in self.section_10_thresholds if c.status == CheckStatus.GATED
         )
+        not_measured_thresholds = sum(
+            1 for c in self.section_10_thresholds if c.status == CheckStatus.NOT_MEASURED
+        )
 
         passed_p0 = sum(1 for p in self.p0_tasks if p.status == CheckStatus.PASS)
         failed_p0 = sum(1 for p in self.p0_tasks if p.status == CheckStatus.FAIL)
         gated_p0 = sum(1 for p in self.p0_tasks if p.status == CheckStatus.GATED)
+        not_verified_p0 = sum(1 for p in self.p0_tasks if p.status == CheckStatus.NOT_VERIFIED)
 
         return {
             "auth02_granted": self.auth02_granted,
@@ -229,6 +259,7 @@ class GoNoGoResult:
             "network_calls": 0,
             "p0_tasks_failed": failed_p0,
             "p0_tasks_gated": gated_p0,
+            "p0_tasks_not_verified": not_verified_p0,
             "p0_tasks_passed": passed_p0,
             "p0_tasks_total": len(self.p0_tasks),
             "privilege_escalation_events": self.security_signoff.get(
@@ -241,6 +272,7 @@ class GoNoGoResult:
             "status": self.release_status,
             "thresholds_failed": failed_thresholds,
             "thresholds_gated": gated_thresholds,
+            "thresholds_not_measured": not_measured_thresholds,
             "thresholds_passed": passed_thresholds,
             "thresholds_total": len(self.section_10_thresholds),
             "ticket": self.ticket,
@@ -253,25 +285,586 @@ def repository_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
 
+P0_REQUIRED_EVIDENCE: Mapping[str, Sequence[str]] = {
+    "P00": (
+        "scripts/write_env_report.py",
+        "tests/unit/test_write_env_report.py",
+        "pyproject.toml",
+        "uv.lock",
+    ),
+    "P10": (
+        "contracts/raw_record.schema.json",
+        "contracts/evidence_item.schema.json",
+        "contracts/trend.schema.json",
+        "contracts/report.schema.json",
+        "contracts/task_envelope.schema.json",
+        "contracts/task_result.schema.json",
+        "migrations/0001_init.sqlite.sql",
+        "src/techpulse/contracts.py",
+        "tests/contract/test_contracts.py",
+    ),
+    "P20": (
+        ".secrets.baseline",
+        ".github/workflows/ci.yml",
+        "tests/unit/test_secret_scan.py",
+    ),
+    "S10": (
+        "config/source_registry.yaml",
+        "src/techpulse/collectors/base.py",
+        "tests/unit/test_source_registry.py",
+    ),
+    "S20": (
+        "config/policy.yaml",
+        "src/techpulse/governance/policy.py",
+        "src/techpulse/governance/egress.py",
+        "tests/redteam/test_permissions.py",
+    ),
+    "C10": (
+        "src/techpulse/collectors/openalex.py",
+        "tests/integration/test_openalex.py",
+        "tests/fixtures/openalex/one_work.json",
+    ),
+    "C11": (
+        "src/techpulse/collectors/crossref.py",
+        "tests/integration/test_crossref.py",
+        "tests/fixtures/crossref/one_work.json",
+    ),
+    "C12": (
+        "src/techpulse/collectors/arxiv.py",
+        "tests/integration/test_arxiv.py",
+        "tests/fixtures/arxiv/page1.xml",
+    ),
+    "C20": (
+        "src/techpulse/collectors/github.py",
+        "tests/integration/test_github.py",
+        "tests/fixtures/github/repository.json",
+    ),
+    "D10": (
+        "src/techpulse/workflows/activities.py",
+        "tests/integration/test_d10_archive.py",
+    ),
+    "D20": (
+        "src/techpulse/normalize/clean.py",
+        "tests/integration/test_d20_clean.py",
+    ),
+    "D21": (
+        "src/techpulse/governance/pii.py",
+        "docs/deletion_map.md",
+        "tests/integration/test_d21_pii.py",
+    ),
+    "D30": (
+        "src/techpulse/normalize/dedup.py",
+        "data/gold/dedup_gold.jsonl",
+        "tests/unit/test_dedup.py",
+    ),
+    "I10": (
+        "src/techpulse/index/embed.py",
+        "tests/integration/test_i10_embed.py",
+    ),
+    "I20": (
+        "src/techpulse/index/hybrid.py",
+        "tests/evaluation/test_retrieval.py",
+    ),
+    "T10": (
+        "src/techpulse/trends/cluster.py",
+        "tests/unit/test_t10_cluster.py",
+    ),
+    "T20": (
+        "src/techpulse/trends/features.py",
+        "tests/unit/test_t20_features.py",
+    ),
+    "T30": (
+        "src/techpulse/trends/score.py",
+        "tests/unit/test_t30_score.py",
+    ),
+    "E10": (
+        "src/techpulse/evidence/verify.py",
+        "src/techpulse/evidence/retrieve.py",
+        "tests/fixtures/evidence/records.jsonl",
+        "tests/unit/test_e10_evidence.py",
+        "tests/integration/test_e10_pack.py",
+    ),
+    "E20": (
+        "src/techpulse/evidence/contradictions.py",
+        "tests/unit/test_e20_contradictions.py",
+    ),
+    "R10": (
+        "src/techpulse/reports/draft.py",
+        "tests/unit/test_r10_draft.py",
+    ),
+    "Q10": (
+        "src/techpulse/reports/qa.py",
+        "tests/unit/test_q10_qa.py",
+    ),
+    "Q20": (
+        "src/techpulse/redteam.py",
+        "tests/redteam/cases",
+        "tests/redteam/test_injection.py",
+    ),
+    "Q30": (
+        "src/techpulse/qa/drills.py",
+        "tests/evaluation/test_q30_drills.py",
+    ),
+    "A10": (
+        "src/techpulse/api/main.py",
+        "src/techpulse/api/routes.py",
+        "src/techpulse/api/auth.py",
+        "tests/contract/test_api.py",
+    ),
+    "O10": (
+        "tests/unit/test_o10_release.py",
+        "infra/staging/deployment.yaml",
+    ),
+    "O20": (
+        "src/techpulse/workflows/orchestrator.py",
+        "tests/unit/test_o20_orchestrator.py",
+    ),
+    "O30": (
+        "src/techpulse/ops/metrics.py",
+        "tests/unit/test_o30_metrics.py",
+        "config/model_router.yaml",
+    ),
+    "V90": (
+        "src/techpulse/release/go_nogo.py",
+        "scripts/go_nogo.py",
+        "tests/unit/test_v90_go_nogo.py",
+    ),
+}
+
+
+def _measure_d20(root: Path, artifacts_dir: Path | None = None) -> tuple[float, float] | None:
+    """Measure D20 extraction rate and schema completeness from artifacts or fixtures."""
+    # 1. Check existing artifacts
+    candidate_roots = [artifacts_dir] if artifacts_dir is not None else []
+    candidate_roots.append(root / "artifacts")
+    for base in candidate_roots:
+        if base and base.is_dir():
+            for mpath in base.glob("*/D20/metrics.json"):
+                try:
+                    data = json.loads(mpath.read_text(encoding="utf-8"))
+                    ext = data.get("extraction_success_rate")
+                    comp = data.get("required_field_completeness")
+                    if ext is not None and comp is not None:
+                        return float(ext), float(comp)
+                except Exception:
+                    continue
+
+    # 2. Check fixture records
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    try:
+        from tests.integration.collector_fixtures import load_fixture_records, ndjson_bytes
+    except ImportError:
+        load_fixture_records = None  # type: ignore[assignment]
+        ndjson_bytes = None  # type: ignore[assignment]
+
+    if load_fixture_records is not None and ndjson_bytes is not None:
+        collect_dir = root / "tests" / "fixtures"
+        if (collect_dir / "openalex" / "one_work.json").is_file():
+            try:
+                with tempfile.TemporaryDirectory() as tmp:
+                    tmppath = Path(tmp)
+                    records = load_fixture_records(tmppath / "collect")
+                    payload = ndjson_bytes(records)
+                    clean_res = clean_ndjson(payload, run_id="d20-eval", artifacts_dir=tmppath)
+                    ext = clean_res.metrics.get("extraction_success_rate")
+                    comp = clean_res.metrics.get("required_field_completeness")
+                    if ext is not None and comp is not None:
+                        return float(ext), float(comp)
+            except Exception:
+                pass
+    return None
+
+
+def _measure_d30(root: Path) -> tuple[float, float] | None:
+    """Measure D30 dedup precision and recall against committed gold set."""
+    gold_path = root / "data" / "gold" / "dedup_gold.jsonl"
+    if not gold_path.is_file():
+        return None
+    try:
+        gold_rows = [
+            json.loads(line)
+            for line in gold_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if not gold_rows:
+            return None
+        dedup_result = deduplicate_records(gold_rows)
+        labels = {
+            f"{row['source_id']}:{row['source_record_id']}": row["cluster"] for row in gold_rows
+        }
+        metrics = pairwise_metrics(dedup_result.rows, labels)
+        return float(metrics.precision), float(metrics.recall)
+    except Exception:
+        return None
+
+
+def _measure_i30_dev(root: Path) -> tuple[float, float] | None:
+    """Measure I30 retrieval nDCG@10 and Recall@20 on dev split only."""
+    corpus_path = root / "data" / "gold" / "retrieval" / "corpus.jsonl"
+    queries_path = root / "data" / "gold" / "retrieval" / "queries.jsonl"
+    if not corpus_path.is_file() or not queries_path.is_file():
+        return None
+
+    try:
+        docs = [
+            json.loads(line)
+            for line in corpus_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        if not docs:
+            return None
+
+        embedder = HashedNgramEmbedder()
+        bodies = [f"{d.get('title', '')} {d.get('text', '')}" for d in docs]
+        vectors = embedder.embed(bodies)
+
+        corpus_docs = []
+        for d, b, v in zip(docs, bodies, vectors, strict=True):
+            corpus_docs.append(
+                CorpusDocument(
+                    vector_id=d["doc_id"],
+                    chunk_id=d["doc_id"],
+                    source_id=d.get("source", ""),
+                    source_record_id=d["doc_id"],
+                    language=d.get("language", "en"),
+                    license_status="fulltext_allowed",
+                    body=b,
+                    content_sha256="0" * 64,
+                    embedding=tuple(v),
+                )
+            )
+
+        active_corpus = ActiveCorpus(
+            text_version="1.0",
+            published_version="1.0",
+            model_id=embedder.model_id,
+            model_version=embedder.model_version,
+            dimension=embedder.dimension,
+            documents=tuple(corpus_docs),
+            vectors_available=True,
+        )
+
+        def _retriever(query_str: str) -> Sequence[str]:
+            res = retrieve(query_str, active_corpus, embedder=embedder)
+            return system_ranking(res)
+
+        gold = load_gold_queries(queries_path)
+        dev_queries = [q for q in gold if q.split == "dev"]
+        if not dev_queries:
+            return None
+
+        eval_result = evaluate(_retriever, dev_queries)
+        return float(eval_result.overall.ndcg_at_10), float(eval_result.overall.recall_at_20)
+    except Exception:
+        return None
+
+
+def _measure_q10(
+    root: Path, artifacts_dir: Path | None = None
+) -> tuple[float, float, float] | None:
+    """Measure Q10 citation coverage, URL traceability, and numeric/date consistency."""
+    # 1. Check artifacts
+    candidate_roots = [artifacts_dir] if artifacts_dir is not None else []
+    candidate_roots.append(root / "artifacts")
+    for base in candidate_roots:
+        if base and base.is_dir():
+            for mpath in base.glob("*/Q10/metrics.json"):
+                try:
+                    data = json.loads(mpath.read_text(encoding="utf-8"))
+                    if isinstance(data, dict):
+                        checks = data.get("checks")
+                        if isinstance(checks, dict):
+                            cite = checks.get("citation_coverage", {}).get("value")
+                            url = checks.get("url_traceability", {}).get("value")
+                            num = checks.get("numeric_date_consistency", {}).get("value")
+                            if cite is not None and url is not None and num is not None:
+                                return float(cite), float(url), float(num)
+                except Exception:
+                    continue
+
+    # 2. Check committed sample reports
+    sample_path = root / "growth" / "sample_1.md"
+    if sample_path.is_file():
+        try:
+            text = sample_path.read_text(encoding="utf-8")
+            match = re.search(r"## Q10 结果\s+```json\s*(\{.*?\})\s*```", text, re.DOTALL)
+            if match:
+                data = json.loads(match.group(1))
+                if isinstance(data, dict):
+                    checks = data.get("checks")
+                    if isinstance(checks, dict):
+                        cite = checks.get("citation_coverage", {}).get("value")
+                        url = checks.get("url_traceability", {}).get("value")
+                        num = checks.get("numeric_date_consistency", {}).get("value")
+                        if cite is not None and url is not None and num is not None:
+                            return float(cite), float(url), float(num)
+        except Exception:
+            pass
+
+    # 3. Check sample pipeline from evidence records fixture
+    records_fixture = root / "tests" / "fixtures" / "evidence" / "records.jsonl"
+    if records_fixture.is_file():
+        try:
+            records = [
+                json.loads(line)
+                for line in records_fixture.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            deduped = deduplicate_records(records)
+            clusters = clusters_from_dedup(deduped.rows)
+            as_of = datetime(2026, 10, 28, 15, 0, tzinfo=UTC)
+            features = build_features(records, as_of=as_of)
+            feature_rows = list(features.rows)
+            scored = score_trends(feature_rows)
+            trends = [row for row in scored.trends if row.get("window_days") == 7]
+            pack = build_evidence_pack(trends, records, features=feature_rows, clusters=clusters)
+            draft = draft_report(
+                pack.document,
+                {},
+                trends,
+                run_id="q10-verify",
+                report_kind="weekly",
+            )
+            qa = review_report(
+                draft.document,
+                pack.document,
+                markdown=draft.markdown,
+                features=feature_rows,
+                raw_records=records,
+                run_id="q10-verify",
+            )
+            checks_obj = qa.document.get("checks")
+            if isinstance(checks_obj, dict):
+                cite = checks_obj.get("citation_coverage", {}).get("value")
+                url = checks_obj.get("url_traceability", {}).get("value")
+                num = checks_obj.get("numeric_date_consistency", {}).get("value")
+                if cite is not None and url is not None and num is not None:
+                    return float(cite), float(url), float(num)
+        except Exception:
+            pass
+
+    return None
+
+
+def _measure_e10(root: Path, artifacts_dir: Path | None = None) -> tuple[int, int] | None:
+    """Measure E10 source families count and Tier-A sources count."""
+    candidate_roots = [artifacts_dir] if artifacts_dir is not None else []
+    candidate_roots.append(root / "artifacts")
+    for base in candidate_roots:
+        if base and base.is_dir():
+            for epath in base.glob("*/E10/evidence_pack.json"):
+                try:
+                    data = json.loads(epath.read_text(encoding="utf-8"))
+                    if isinstance(data, dict):
+                        trends_raw = data.get("trends")
+                        if isinstance(trends_raw, list):
+                            t_list = [t for t in trends_raw if isinstance(t, dict)]
+                            max_fam = max(
+                                (
+                                    len(t.get("source_families", []))
+                                    for t in t_list
+                                    if isinstance(t.get("source_families"), list)
+                                ),
+                                default=0,
+                            )
+                            max_tier = max(
+                                (
+                                    int(t.get("tier_a_count", 0))
+                                    for t in t_list
+                                    if isinstance(t.get("tier_a_count"), (int, float))
+                                ),
+                                default=0,
+                            )
+                            if max_fam > 0 and max_tier > 0:
+                                return max_fam, max_tier
+                except Exception:
+                    continue
+
+    records_fixture = root / "tests" / "fixtures" / "evidence" / "records.jsonl"
+    if records_fixture.is_file():
+        try:
+            records = [
+                json.loads(line)
+                for line in records_fixture.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            deduped = deduplicate_records(records)
+            clusters = clusters_from_dedup(deduped.rows)
+            as_of = datetime(2026, 10, 28, 15, 0, tzinfo=UTC)
+            features = build_features(records, as_of=as_of)
+            feature_rows = list(features.rows)
+            scored = score_trends(feature_rows)
+            trends = [row for row in scored.trends if row.get("window_days") == 7]
+            pack = build_evidence_pack(trends, records, features=feature_rows, clusters=clusters)
+            pack_trends_raw = pack.document.get("trends")
+            if isinstance(pack_trends_raw, list):
+                t_list = [t for t in pack_trends_raw if isinstance(t, dict)]
+                max_fam = max(
+                    (
+                        len(t.get("source_families", []))
+                        for t in t_list
+                        if isinstance(t.get("source_families"), list)
+                    ),
+                    default=0,
+                )
+                max_tier = max(
+                    (
+                        int(t.get("tier_a_count", 0))
+                        for t in t_list
+                        if isinstance(t.get("tier_a_count"), (int, float))
+                    ),
+                    default=0,
+                )
+                if max_fam > 0 and max_tier > 0:
+                    return max_fam, max_tier
+        except Exception:
+            pass
+
+    return None
+
+
+def _measure_redteam_fixtures(root: Path) -> int | None:
+    """Measure count of red-team adversarial fixtures."""
+    redteam_path = root / "tests" / "redteam" / "cases"
+    if not redteam_path.is_dir():
+        return None
+    fixtures = list(redteam_path.glob("*.txt"))
+    return len(fixtures) if fixtures else None
+
+
+def _measure_security_violations(
+    root: Path, artifacts_dir: Path | None = None
+) -> tuple[int, int, int] | None:
+    """Measure security violations (unauthorized calls, secret leaks, egress violations)."""
+    # 1. Check Q20 artifacts
+    candidate_roots = [artifacts_dir] if artifacts_dir is not None else []
+    candidate_roots.append(root / "artifacts")
+    for base in candidate_roots:
+        if base and base.is_dir():
+            for mpath in base.glob("*/Q20/metrics.json"):
+                try:
+                    data = json.loads(mpath.read_text(encoding="utf-8"))
+                    counts = data.get("counts", {})
+                    unauth = counts.get("unauthorized_tool_calls_executed")
+                    leaks = counts.get("secrets_leaked")
+                    failed = counts.get("cases_failed", 0)
+                    if unauth is not None and leaks is not None:
+                        return int(unauth), int(leaks), int(failed)
+                except Exception:
+                    continue
+
+    # 2. Check security report
+    report_path = root / "docs" / "security_redteam.md"
+    if report_path.is_file():
+        try:
+            text = report_path.read_text(encoding="utf-8")
+            match = re.search(r"```json\s*(\{.*?\})\s*```", text, re.DOTALL)
+            if match:
+                data = json.loads(match.group(1))
+                metrics = data.get("metrics", {})
+                unauth = metrics.get("unauthorized_tool_calls_executed")
+                leaks = metrics.get("secrets_leaked")
+                failed = metrics.get("cases_failed", 0)
+                if unauth is not None and leaks is not None:
+                    return int(unauth), int(leaks), int(failed)
+        except Exception:
+            pass
+
+    # 3. Run suite against redteam cases if available
+    cases_dir = root / "tests" / "redteam" / "cases"
+    policy_path = root / "config" / "policy.yaml"
+    registry_path = root / "tests" / "fixtures" / "source_registry.yaml"
+    if cases_dir.is_dir() and policy_path.is_file() and registry_path.is_file():
+        try:
+            rep = run_suite(cases_dir, policy_path=policy_path, registry_path=registry_path)
+            return (
+                rep.unauthorized_tool_calls_executed,
+                rep.secrets_leaked,
+                rep.cases_failed,
+            )
+        except Exception:
+            pass
+
+    return None
+
+
+def _measure_o30_spend(root: Path, artifacts_dir: Path | None = None) -> float | None:
+    """Measure daily LLM spend from O30 metrics or model router."""
+    candidate_roots = [artifacts_dir] if artifacts_dir is not None else []
+    candidate_roots.append(root / "artifacts")
+    for base in candidate_roots:
+        if base and base.is_dir():
+            for mpath in base.glob("*/O30/metrics.json"):
+                try:
+                    data = json.loads(mpath.read_text(encoding="utf-8"))
+                    spent = data.get("spent_usd")
+                    if spent is not None:
+                        return float(spent)
+                except Exception:
+                    continue
+
+    router_path = root / "config" / "model_router.yaml"
+    if router_path.is_file():
+        try:
+            data = yaml.safe_load(router_path.read_text(encoding="utf-8"))
+            if isinstance(data, dict):
+                default_model = data.get("default_model")
+                models = data.get("models", [])
+                paid_count = sum(1 for m in models if isinstance(m, dict) and m.get("paid") is True)
+                if default_model == "local/template" and paid_count == 0:
+                    return 0.0
+        except Exception:
+            pass
+
+    return None
+
+
 def evaluate_section_10_thresholds(
     root: Path,
     overrides: Mapping[str, Any] | None = None,
+    artifacts_dir: Path | None = None,
 ) -> tuple[CheckItem, ...]:
-    """Check item by item against the Section 10 quantitative thresholds."""
+    """Check item by item against the Section 10 quantitative thresholds.
+
+    Every metric is computed from real committed data or artifacts, or by
+    running the relevant evaluators. If an input is missing and no override
+    is provided, status is NOT_MEASURED (never a default pass).
+    """
     ov: Mapping[str, Any] = overrides or {}
     checks: list[CheckItem] = []
 
     # 1. D20 Content extraction rate (≥97%)
-    ext_obs = float(ov.get("content_extraction_rate", 1.0))
-    passed_ext = ext_obs >= 0.97
+    # 2. D20 Schema completeness rate (≥98%)
+    d20_measured = _measure_d20(root, artifacts_dir)
+
+    if "content_extraction_rate" in ov:
+        ext_obs = float(ov["content_extraction_rate"])
+        ext_measured = True
+    elif d20_measured is not None:
+        ext_obs = d20_measured[0]
+        ext_measured = True
+    else:
+        ext_obs = 0.0
+        ext_measured = False
+
+    if ext_measured:
+        passed_ext = ext_obs >= 0.97
+        status_ext = CheckStatus.PASS if passed_ext else CheckStatus.FAIL
+        observed_ext = f"{ext_obs * 100:.1f}%"
+    else:
+        passed_ext = False
+        status_ext = CheckStatus.NOT_MEASURED
+        observed_ext = "NOT_MEASURED"
+
     checks.append(
         CheckItem(
             category="内容",
             name="正文抽取成功率（可获取内容分母）",
             threshold="≥97%",
-            observed=f"{ext_obs * 100:.1f}%",
+            observed=observed_ext,
             passed=passed_ext,
-            status=CheckStatus.PASS if passed_ext else CheckStatus.FAIL,
+            status=status_ext,
             responsible_task="D20",
             details=(
                 "Validated against raw cleanable records; clean.py enforces fatal_error below 97%."
@@ -279,212 +872,400 @@ def evaluate_section_10_thresholds(
         )
     )
 
-    # 2. D20 Schema completeness rate (≥98%)
-    schema_obs = float(ov.get("schema_completeness_rate", 1.0))
-    passed_schema = schema_obs >= 0.98
+    if "schema_completeness_rate" in ov:
+        schema_obs = float(ov["schema_completeness_rate"])
+        schema_measured = True
+    elif d20_measured is not None:
+        schema_obs = d20_measured[1]
+        schema_measured = True
+    else:
+        schema_obs = 0.0
+        schema_measured = False
+
+    if schema_measured:
+        passed_schema = schema_obs >= 0.98
+        status_schema = CheckStatus.PASS if passed_schema else CheckStatus.FAIL
+        observed_schema = f"{schema_obs * 100:.1f}%"
+    else:
+        passed_schema = False
+        status_schema = CheckStatus.NOT_MEASURED
+        observed_schema = "NOT_MEASURED"
+
     checks.append(
         CheckItem(
             category="Schema",
             name="必填字段完整率",
             threshold="≥98%",
-            observed=f"{schema_obs * 100:.1f}%",
+            observed=observed_schema,
             passed=passed_schema,
-            status=CheckStatus.PASS if passed_schema else CheckStatus.FAIL,
+            status=status_schema,
             responsible_task="D20",
             details="Validated against required fields in clean.py and raw_record.schema.json.",
         )
     )
 
     # 3. D30 Dedup precision (≥0.98) and recall (≥0.95)
-    dedup_gold_path = root / "data" / "gold" / "dedup_gold.jsonl"
-    if "dedup_precision" in ov or "dedup_recall" in ov:
-        prec = float(ov.get("dedup_precision", 1.0))
-        rec = float(ov.get("dedup_recall", 1.0))
-    elif dedup_gold_path.is_file():
-        gold_rows = [
-            json.loads(line)
-            for line in dedup_gold_path.read_text(encoding="utf-8").splitlines()
-            if line.strip()
-        ]
-        dedup_result = deduplicate_records(gold_rows)
-        labels = {
-            f"{row['source_id']}:{row['source_record_id']}": row["cluster"] for row in gold_rows
-        }
-        metrics = pairwise_metrics(dedup_result.rows, labels)
-        prec = metrics.precision
-        rec = metrics.recall
-    else:
-        prec = 1.0
-        rec = 1.0
+    d30_measured = _measure_d30(root)
+    prec_base, rec_base = d30_measured if d30_measured is not None else (0.0, 0.0)
+    has_base = d30_measured is not None
 
-    passed_dedup = (prec >= 0.98) and (rec >= 0.95)
+    if "dedup_precision" in ov or "dedup_recall" in ov:
+        prec = float(ov.get("dedup_precision", prec_base))
+        rec = float(ov.get("dedup_recall", rec_base))
+        dedup_measured = ("dedup_precision" in ov or has_base) and (
+            "dedup_recall" in ov or has_base
+        )
+    elif has_base:
+        prec, rec = prec_base, rec_base
+        dedup_measured = True
+    else:
+        prec, rec = 0.0, 0.0
+        dedup_measured = False
+
+    if dedup_measured:
+        passed_dedup = (prec >= 0.98) and (rec >= 0.95)
+        status_dedup = CheckStatus.PASS if passed_dedup else CheckStatus.FAIL
+        observed_dedup = f"{prec:.4f} / {rec:.4f}"
+    else:
+        passed_dedup = False
+        status_dedup = CheckStatus.NOT_MEASURED
+        observed_dedup = "NOT_MEASURED"
+
     checks.append(
         CheckItem(
             category="去重",
             name="Precision / Recall",
             threshold="≥0.98 / ≥0.95",
-            observed=f"{prec:.4f} / {rec:.4f}",
+            observed=observed_dedup,
             passed=passed_dedup,
-            status=CheckStatus.PASS if passed_dedup else CheckStatus.FAIL,
+            status=status_dedup,
             responsible_task="D30",
             details="Evaluated against hand-labelled frozen data/gold/dedup_gold.jsonl.",
         )
     )
 
     # 4. I20/I30 Retrieval nDCG@10 (≥0.75)
-    ndcg_obs = float(ov.get("retrieval_ndcg_at_10", 1.0))
-    passed_ndcg = ndcg_obs >= 0.75
+    # 5. I20/I30 Retrieval Recall@20 (≥0.85)
+    i30_measured = _measure_i30_dev(root)
+
+    if "retrieval_ndcg_at_10" in ov:
+        ndcg_obs = float(ov["retrieval_ndcg_at_10"])
+        ndcg_measured = True
+    elif i30_measured is not None:
+        ndcg_obs = i30_measured[0]
+        ndcg_measured = True
+    else:
+        ndcg_obs = 0.0
+        ndcg_measured = False
+
+    if ndcg_measured:
+        passed_ndcg = ndcg_obs >= 0.75
+        status_ndcg = CheckStatus.PASS if passed_ndcg else CheckStatus.FAIL
+        observed_ndcg = f"{ndcg_obs:.4f}"
+    else:
+        passed_ndcg = False
+        status_ndcg = CheckStatus.NOT_MEASURED
+        observed_ndcg = "NOT_MEASURED"
+
     checks.append(
         CheckItem(
             category="Retrieval",
             name="nDCG@10",
             threshold="≥0.75",
-            observed=f"{ndcg_obs:.4f}",
+            observed=observed_ndcg,
             passed=passed_ndcg,
-            status=CheckStatus.PASS if passed_ndcg else CheckStatus.FAIL,
+            status=status_ndcg,
             responsible_task="I20/I30",
-            details="Hybrid dense+BM25+RRF+rerank; evaluated on frozen I30 corpus/queries.",
+            details=(
+                "Hybrid dense+BM25+RRF+rerank; evaluated on frozen I30 dev split (NOT test split)."
+            ),
         )
     )
 
-    # 5. I20/I30 Retrieval Recall@20 (≥0.85)
-    recall_obs = float(ov.get("retrieval_recall_at_20", 1.0))
-    passed_recall = recall_obs >= 0.85
+    if "retrieval_recall_at_20" in ov:
+        recall_obs = float(ov["retrieval_recall_at_20"])
+        recall_measured = True
+    elif i30_measured is not None:
+        recall_obs = i30_measured[1]
+        recall_measured = True
+    else:
+        recall_obs = 0.0
+        recall_measured = False
+
+    if recall_measured:
+        passed_recall = recall_obs >= 0.85
+        status_recall = CheckStatus.PASS if passed_recall else CheckStatus.FAIL
+        observed_recall = f"{recall_obs:.4f}"
+    else:
+        passed_recall = False
+        status_recall = CheckStatus.NOT_MEASURED
+        observed_recall = "NOT_MEASURED"
+
     checks.append(
         CheckItem(
             category="Retrieval",
             name="Recall@20",
             threshold="≥0.85",
-            observed=f"{recall_obs:.4f}",
+            observed=observed_recall,
             passed=passed_recall,
-            status=CheckStatus.PASS if passed_recall else CheckStatus.FAIL,
+            status=status_recall,
             responsible_task="I20/I30",
-            details="Hybrid dense+BM25+RRF+rerank; evaluated on frozen I30 corpus/queries.",
+            details=(
+                "Hybrid dense+BM25+RRF+rerank; evaluated on frozen I30 dev split (NOT test split)."
+            ),
         )
     )
 
     # 6. Q10 Claim citation coverage (≥95%)
-    cite_obs = float(ov.get("claim_citation_coverage", 1.0))
-    passed_cite = cite_obs >= 0.95
+    # 7. D10/Q10 URL traceability (100%)
+    # 8. Q10 Date and numeric consistency (≥98%)
+    q10_measured = _measure_q10(root, artifacts_dir)
+
+    if "claim_citation_coverage" in ov:
+        cite_obs = float(ov["claim_citation_coverage"])
+        cite_measured = True
+    elif q10_measured is not None:
+        cite_obs = q10_measured[0]
+        cite_measured = True
+    else:
+        cite_obs = 0.0
+        cite_measured = False
+
+    if cite_measured:
+        passed_cite = cite_obs >= 0.95
+        status_cite = CheckStatus.PASS if passed_cite else CheckStatus.FAIL
+        observed_cite = f"{cite_obs * 100:.1f}%"
+    else:
+        passed_cite = False
+        status_cite = CheckStatus.NOT_MEASURED
+        observed_cite = "NOT_MEASURED"
+
     checks.append(
         CheckItem(
             category="事实",
             name="Claim 引用覆盖",
             threshold="≥95%",
-            observed=f"{cite_obs * 100:.1f}%",
+            observed=observed_cite,
             passed=passed_cite,
-            status=CheckStatus.PASS if passed_cite else CheckStatus.FAIL,
+            status=status_cite,
             responsible_task="Q10",
             details="Strict claim-evidence pack verification; uncovered factual sentences fail.",
         )
     )
 
-    # 7. D10/Q10 URL traceability (100%)
-    url_obs = float(ov.get("url_traceability", 1.0))
-    passed_url = url_obs >= 1.0
+    if "url_traceability" in ov:
+        url_obs = float(ov["url_traceability"])
+        url_measured = True
+    elif q10_measured is not None:
+        url_obs = q10_measured[1]
+        url_measured = True
+    else:
+        url_obs = 0.0
+        url_measured = False
+
+    if url_measured:
+        passed_url = url_obs >= 1.0
+        status_url = CheckStatus.PASS if passed_url else CheckStatus.FAIL
+        observed_url = f"{url_obs * 100:.1f}%"
+    else:
+        passed_url = False
+        status_url = CheckStatus.NOT_MEASURED
+        observed_url = "NOT_MEASURED"
+
     checks.append(
         CheckItem(
             category="血缘",
             name="URL 可追溯",
             threshold="100%",
-            observed=f"{url_obs * 100:.1f}%",
+            observed=observed_url,
             passed=passed_url,
-            status=CheckStatus.PASS if passed_url else CheckStatus.FAIL,
+            status=status_url,
             responsible_task="D10/Q10",
             details="100% of public claims trace to verified raw canonical URL and SHA-256.",
         )
     )
 
-    # 8. Q10 Date and numeric consistency (≥98%)
-    num_obs = float(ov.get("numeric_date_consistency", 1.0))
-    passed_num = num_obs >= 0.98
+    if "numeric_date_consistency" in ov:
+        num_obs = float(ov["numeric_date_consistency"])
+        num_measured = True
+    elif q10_measured is not None:
+        num_obs = q10_measured[2]
+        num_measured = True
+    else:
+        num_obs = 0.0
+        num_measured = False
+
+    if num_measured:
+        passed_num = num_obs >= 0.98
+        status_num = CheckStatus.PASS if passed_num else CheckStatus.FAIL
+        observed_num = f"{num_obs * 100:.1f}%"
+    else:
+        passed_num = False
+        status_num = CheckStatus.NOT_MEASURED
+        observed_num = "NOT_MEASURED"
+
     checks.append(
         CheckItem(
             category="数字",
             name="日期/数值一致",
             threshold="≥98%",
-            observed=f"{num_obs * 100:.1f}%",
+            observed=observed_num,
             passed=passed_num,
-            status=CheckStatus.PASS if passed_num else CheckStatus.FAIL,
+            status=status_num,
             responsible_task="Q10",
             details="All dates and numeric quantities verified against source extractions.",
         )
     )
 
     # 9. E10 Independent source families (≥3)
-    fam_obs = int(ov.get("independent_source_families", 3))
-    passed_fam = fam_obs >= 3
+    # 10. E10 Tier-A sources (≥2)
+    e10_measured = _measure_e10(root, artifacts_dir)
+
+    if "independent_source_families" in ov:
+        fam_obs = int(ov["independent_source_families"])
+        fam_measured = True
+    elif e10_measured is not None:
+        fam_obs = e10_measured[0]
+        fam_measured = True
+    else:
+        fam_obs = 0
+        fam_measured = False
+
+    if fam_measured:
+        passed_fam = fam_obs >= 3
+        status_fam = CheckStatus.PASS if passed_fam else CheckStatus.FAIL
+        observed_fam = str(fam_obs)
+    else:
+        passed_fam = False
+        status_fam = CheckStatus.NOT_MEASURED
+        observed_fam = "NOT_MEASURED"
+
     checks.append(
         CheckItem(
             category="高置信趋势",
             name="独立来源族",
             threshold="≥3",
-            observed=str(fam_obs),
+            observed=observed_fam,
             passed=passed_fam,
-            status=CheckStatus.PASS if passed_fam else CheckStatus.FAIL,
+            status=status_fam,
             responsible_task="E10",
             details="High-confidence claims require cross-validation from ≥3 distinct families.",
         )
     )
 
-    # 10. E10 Tier-A sources (≥2)
-    tier_obs = int(ov.get("tier_a_sources", 2))
-    passed_tier = tier_obs >= 2
+    if "tier_a_sources" in ov:
+        tier_obs = int(ov["tier_a_sources"])
+        tier_measured = True
+    elif e10_measured is not None:
+        tier_obs = e10_measured[1]
+        tier_measured = True
+    else:
+        tier_obs = 0
+        tier_measured = False
+
+    if tier_measured:
+        passed_tier = tier_obs >= 2
+        status_tier = CheckStatus.PASS if passed_tier else CheckStatus.FAIL
+        observed_tier = str(tier_obs)
+    else:
+        passed_tier = False
+        status_tier = CheckStatus.NOT_MEASURED
+        observed_tier = "NOT_MEASURED"
+
     checks.append(
         CheckItem(
             category="高置信趋势",
             name="Tier-A 来源",
             threshold="≥2",
-            observed=str(tier_obs),
+            observed=observed_tier,
             passed=passed_tier,
-            status=CheckStatus.PASS if passed_tier else CheckStatus.FAIL,
+            status=status_tier,
             responsible_task="E10",
             details="High-confidence claims require ≥2 Tier-A primary sources.",
         )
     )
 
     # 11. Q20 Red team fixtures (≥100)
-    redteam_path = root / "tests" / "redteam" / "cases"
+    redteam_count = _measure_redteam_fixtures(root)
     if "redteam_fixtures" in ov:
         fixtures_count = int(ov["redteam_fixtures"])
-    elif redteam_path.is_dir():
-        fixtures_count = len(list(redteam_path.glob("*.txt")))
+        fixtures_measured = True
+    elif redteam_count is not None:
+        fixtures_count = redteam_count
+        fixtures_measured = True
     else:
-        fixtures_count = 160
+        fixtures_count = 0
+        fixtures_measured = False
 
-    passed_fixtures = fixtures_count >= 100
+    if fixtures_measured:
+        passed_fixtures = fixtures_count >= 100
+        status_fixtures = CheckStatus.PASS if passed_fixtures else CheckStatus.FAIL
+        observed_fixtures = str(fixtures_count)
+    else:
+        passed_fixtures = False
+        status_fixtures = CheckStatus.NOT_MEASURED
+        observed_fixtures = "NOT_MEASURED"
+
     checks.append(
         CheckItem(
             category="安全",
             name="红队 fixtures",
             threshold="≥100",
-            observed=str(fixtures_count),
+            observed=observed_fixtures,
             passed=passed_fixtures,
-            status=CheckStatus.PASS if passed_fixtures else CheckStatus.FAIL,
+            status=status_fixtures,
             responsible_task="Q20",
             details="Frozen adversarial prompt injection cases in tests/redteam/cases.",
         )
     )
 
     # 12. S20/Q20 Unauthorized Tool Call / Secret Leak / Egress Violation (=0)
-    unauthorized_calls = int(ov.get("unauthorized_tool_calls", 0))
-    secret_leaks = int(ov.get("secret_leaks", 0))
-    egress_violations = int(ov.get("egress_violations", 0))
-    total_violations = unauthorized_calls + secret_leaks + egress_violations
-    passed_sec = total_violations == 0
+    sec_violations = _measure_security_violations(root, artifacts_dir)
+    default_unauth, default_leaks, default_egress = (
+        sec_violations if sec_violations is not None else (None, None, None)
+    )
+
+    if "unauthorized_tool_calls" in ov or "secret_leaks" in ov or "egress_violations" in ov:
+        unauth_val = ov.get("unauthorized_tool_calls", default_unauth)
+        leaks_val = ov.get("secret_leaks", default_leaks)
+        egress_val = ov.get("egress_violations", default_egress)
+        if unauth_val is not None and leaks_val is not None and egress_val is not None:
+            unauth = int(unauth_val)
+            leaks = int(leaks_val)
+            egress = int(egress_val)
+            sec_measured = True
+        else:
+            unauth, leaks, egress = 0, 0, 0
+            sec_measured = False
+    elif sec_violations is not None:
+        unauth, leaks, egress = sec_violations
+        sec_measured = True
+    else:
+        unauth, leaks, egress = 0, 0, 0
+        sec_measured = False
+
+    if sec_measured:
+        total_violations = unauth + leaks + egress
+        passed_sec = total_violations == 0
+        status_sec = CheckStatus.PASS if passed_sec else CheckStatus.FAIL
+        observed_sec = str(total_violations)
+        details_sec = f"unauthorized={unauth}, leaks={leaks}, egress_violations={egress}."
+    else:
+        passed_sec = False
+        status_sec = CheckStatus.NOT_MEASURED
+        observed_sec = "NOT_MEASURED"
+        details_sec = "Security violations cannot be measured: missing Q20/S20 audit records."
+
     checks.append(
         CheckItem(
             category="安全",
             name="未授权 Tool Call / Secret 泄漏 / Egress 越权",
             threshold="0",
-            observed=str(total_violations),
+            observed=observed_sec,
             passed=passed_sec,
-            status=CheckStatus.PASS if passed_sec else CheckStatus.FAIL,
+            status=status_sec,
             responsible_task="S20/Q20",
-            details=(
-                f"unauthorized={unauthorized_calls}, leaks={secret_leaks}, "
-                f"egress_violations={egress_violations}."
-            ),
+            details=details_sec,
         )
     )
 
@@ -504,16 +1285,34 @@ def evaluate_section_10_thresholds(
     )
 
     # 14. O30 Daily LLM total spend (≤$25)
-    spend_obs = float(ov.get("daily_llm_spend_usd", 0.0))
-    passed_spend = spend_obs <= 25.0
+    spend_measured = _measure_o30_spend(root, artifacts_dir)
+    if "daily_llm_spend_usd" in ov:
+        spend_obs = float(ov["daily_llm_spend_usd"])
+        spend_found = True
+    elif spend_measured is not None:
+        spend_obs = spend_measured
+        spend_found = True
+    else:
+        spend_obs = 0.0
+        spend_found = False
+
+    if spend_found:
+        passed_spend = spend_obs <= 25.0
+        status_spend = CheckStatus.PASS if passed_spend else CheckStatus.FAIL
+        observed_spend = f"${spend_obs:.2f} (budget cap $25.00, router default local/template)"
+    else:
+        passed_spend = False
+        status_spend = CheckStatus.NOT_MEASURED
+        observed_spend = "NOT_MEASURED"
+
     checks.append(
         CheckItem(
             category="预算",
             name="每日 LLM 总支出",
             threshold="≤$25",
-            observed=f"${spend_obs:.2f} (budget cap $25.00, router default local/template)",
+            observed=observed_spend,
             passed=passed_spend,
-            status=CheckStatus.PASS if passed_spend else CheckStatus.FAIL,
+            status=status_spend,
             responsible_task="O30",
             details="Hard circuit breaker locked in config/model_router.yaml and enforced in O30.",
         )
@@ -526,18 +1325,12 @@ def evaluate_p0_tasks(
     root: Path,
     overrides: Mapping[str, Any] | None = None,
 ) -> tuple[P0TaskCheck, ...]:
-    """Check every P0 task present and passed."""
+    """Check every P0 task present and verified against real evidence."""
     ov: Mapping[str, Any] = overrides or {}
     failed_p0: set[str] = set(ov.get("failed_p0_tasks", []))
 
-    # All 30 P0 tasks from Table 9: 28 prior tasks + V90 (current) + V99 (gated)
     task_definitions: Sequence[tuple[str, str, str, str]] = (
-        (
-            "P00",
-            "工具链与环境冻结",
-            "Infra",
-            "Frozen in p00/p00fix; scripts/write_env_report.py",
-        ),
+        ("P00", "工具链与环境冻结", "Infra", "Frozen in p00/p00fix; scripts/write_env_report.py"),
         (
             "P10",
             "统一合同与数据库迁移",
@@ -556,162 +1349,62 @@ def evaluate_p0_tasks(
             "Policy",
             "config/source_registry.yaml approved (AUTH-04)",
         ),
-        (
-            "S20",
-            "Egress / 最小权限 / Prompt 防护",
-            "Infra",
-            "config/policy.yaml default deny",
-        ),
-        (
-            "C10",
-            "OpenAlex Collector",
-            "Collect",
-            "openalex collector with rate limit & cursor",
-        ),
-        (
-            "C11",
-            "Crossref Collector",
-            "Collect",
-            "crossref collector with polite pool",
-        ),
-        (
-            "C12",
-            "arXiv Collector",
-            "Collect",
-            "arxiv collector with XML parsing & paging",
-        ),
+        ("S20", "Egress / 最小权限 / Prompt 防护", "Infra", "config/policy.yaml default deny"),
+        ("C10", "OpenAlex Collector", "Collect", "openalex collector with rate limit & cursor"),
+        ("C11", "Crossref Collector", "Collect", "crossref collector with polite pool"),
+        ("C12", "arXiv Collector", "Collect", "arxiv collector with XML parsing & paging"),
         (
             "C20",
             "GitHub Read-Only Collector",
             "Collect",
             "github read-only commit/release collector",
         ),
-        (
-            "D10",
-            "Raw 归档与数据血缘",
-            "Infra",
-            "archive_collector_ndjson with sha256 lineage",
-        ),
-        (
-            "D20",
-            "正文清洗与许可标记",
-            "Clean",
-            "clean.py body extractor with license tagging",
-        ),
+        ("D10", "Raw 归档与数据血缘", "Infra", "archive_collector_ndjson with sha256 lineage"),
+        ("D20", "正文清洗与许可标记", "Clean", "clean.py body extractor with license tagging"),
         (
             "D21",
             "PII 检测、不可逆脱敏与删除映射",
             "Clean",
             "pii.py redact_pii & docs/deletion_map.md",
         ),
-        (
-            "D30",
-            "跨源去重与近似文献合并",
-            "Clean",
-            "dedup.py pairwise matching (≥0.98 / ≥0.95)",
-        ),
-        (
-            "I10",
-            "Embedding 与索引版本化",
-            "Index",
-            "embed.py hashed n-gram with index versioning",
-        ),
-        (
-            "I20",
-            "Dense + BM25 混合召回与重排",
-            "Index",
-            "hybrid.py RRF fusion (≥0.75 / ≥0.85)",
-        ),
-        (
-            "T10",
-            "主题聚类与主题 ID 稳定化",
-            "Signal",
-            "cluster.py stable deterministic topic ID",
-        ),
-        (
-            "T20",
-            "7d/28d 时间窗与增长特征",
-            "Signal",
-            "features.py growth velocity & burst score",
-        ),
+        ("D30", "跨源去重与近似文献合并", "Clean", "dedup.py pairwise matching (≥0.98 / ≥0.95)"),
+        ("I10", "Embedding 与索引版本化", "Index", "embed.py hashed n-gram with index versioning"),
+        ("I20", "Dense + BM25 混合召回与重排", "Index", "hybrid.py RRF fusion (≥0.75 / ≥0.85)"),
+        ("T10", "主题聚类与主题 ID 稳定化", "Signal", "cluster.py stable deterministic topic ID"),
+        ("T20", "7d/28d 时间窗与增长特征", "Signal", "features.py growth velocity & burst score"),
         (
             "T30",
             "趋势评分、置信等级和假阳性抑制",
             "Signal",
             "score.py multi-factor ranking & confidence",
         ),
-        (
-            "E10",
-            "Claim-Evidence 包构建",
-            "Evidence",
-            "verify.py independent family & Tier-A check",
-        ),
+        ("E10", "Claim-Evidence 包构建", "Evidence", "verify.py independent family & Tier-A check"),
         (
             "E20",
             "反证查询与冲突审查",
             "Evidence",
             "contradictions.py contradiction & conflict review",
         ),
-        (
-            "R10",
-            "日报/周报 Markdown 草稿",
-            "Writer",
-            "draft.py structured template generator",
-        ),
-        (
-            "Q10",
-            "事实、引用、版权与格式 QA",
-            "QA",
-            "qa.py fact verification, URL & numeric audit",
-        ),
-        (
-            "Q20",
-            "提示注入与权限红队",
-            "QA",
-            "160 adversarial fixtures tested with 0 bypasses",
-        ),
+        ("R10", "日报/周报 Markdown 草稿", "Writer", "draft.py structured template generator"),
+        ("Q10", "事实、引用、版权与格式 QA", "QA", "qa.py fact verification, URL & numeric audit"),
+        ("Q20", "提示注入与权限红队", "QA", "160 adversarial fixtures tested with 0 bypasses"),
         (
             "Q30",
             "回归、容量、成本与灾备演练",
             "QA",
             "drills.py 10k replay capacity, faults, DR restore",
         ),
-        (
-            "A10",
-            "只读 REST API、认证与游标分页",
-            "API",
-            "FastAPI routes with cursor pagination",
-        ),
+        ("A10", "只读 REST API、认证与游标分页", "API", "FastAPI routes with cursor pagination"),
         (
             "O10",
             "容器构建、测试发布与不可变版本",
             "Deploy",
             "release.py dry-run migration & smoke test",
         ),
-        (
-            "O20",
-            "Temporal 调度、重试、DLQ 与幂等",
-            "Ops",
-            "orchestrator.py local orchestrator",
-        ),
-        (
-            "O30",
-            "指标、成本控制与告警",
-            "Ops",
-            "metrics.py $25 budget circuit breaker & alerts",
-        ),
-        (
-            "V90",
-            "综合发布闸门与安全签收",
-            "QA",
-            "go_nogo.py overall deterministic release gate",
-        ),
-        (
-            "V99",
-            "连续 24 小时无人值守验收",
-            "Ops",
-            "Gated: 24h soak test pending post-V90 staging",
-        ),
+        ("O20", "Temporal 调度、重试、DLQ 与幂等", "Ops", "orchestrator.py local orchestrator"),
+        ("O30", "指标、成本控制与告警", "Ops", "metrics.py $25 budget circuit breaker & alerts"),
+        ("V90", "综合发布闸门与安全签收", "QA", "go_nogo.py overall deterministic release gate"),
+        ("V99", "连续 24 小时无人值守验收", "Ops", "Gated: 24h soak test pending post-V90 staging"),
     )
 
     checks: list[P0TaskCheck] = []
@@ -739,16 +1432,30 @@ def evaluate_p0_tasks(
                 )
             )
         else:
-            checks.append(
-                P0TaskCheck(
-                    task_id=tid,
-                    name=name,
-                    role=role,
-                    passed=True,
-                    status=CheckStatus.PASS,
-                    details=details,
+            required_files = P0_REQUIRED_EVIDENCE.get(tid, ())
+            missing = [f for f in required_files if not (root / f).exists()]
+            if missing:
+                checks.append(
+                    P0TaskCheck(
+                        task_id=tid,
+                        name=name,
+                        role=role,
+                        passed=False,
+                        status=CheckStatus.NOT_VERIFIED,
+                        details=f"P0 task {tid} missing evidence: {', '.join(missing)}",
+                    )
                 )
-            )
+            else:
+                checks.append(
+                    P0TaskCheck(
+                        task_id=tid,
+                        name=name,
+                        role=role,
+                        passed=True,
+                        status=CheckStatus.PASS,
+                        details=details,
+                    )
+                )
 
     return tuple(checks)
 
@@ -756,6 +1463,7 @@ def evaluate_p0_tasks(
 def evaluate_permissions_and_egress(
     root: Path,
     overrides: Mapping[str, Any] | None = None,
+    artifacts_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Check permissions and network egress under S20 policy."""
     ov: Mapping[str, Any] = overrides or {}
@@ -780,8 +1488,21 @@ def evaluate_permissions_and_egress(
                             isolated_roles += 1
 
     policy_default = str(ov.get("policy_default", default_mode))
-    unauthorized_calls = int(ov.get("unauthorized_tool_calls", 0))
-    egress_violations = int(ov.get("egress_violations", 0))
+
+    sec_violations = _measure_security_violations(root, artifacts_dir)
+    if "unauthorized_tool_calls" in ov:
+        unauthorized_calls = int(ov["unauthorized_tool_calls"])
+    elif sec_violations is not None:
+        unauthorized_calls = sec_violations[0]
+    else:
+        unauthorized_calls = 999  # cannot measure -> fail
+
+    if "egress_violations" in ov:
+        egress_violations = int(ov["egress_violations"])
+    elif sec_violations is not None:
+        egress_violations = sec_violations[2]
+    else:
+        egress_violations = 999  # cannot measure -> fail
 
     passed = (
         (policy_default == "deny")
@@ -814,8 +1535,10 @@ def evaluate_price_snapshot(
     paid_models_count = 0
     budgeter_locked = True
     default_model = "local/template"
+    router_present = False
 
     if router_path.is_file():
+        router_present = True
         loaded = yaml.safe_load(router_path.read_text(encoding="utf-8"))
         if isinstance(loaded, dict):
             daily_cap = float(loaded.get("daily_cap_usd", 25.0))
@@ -834,7 +1557,7 @@ def evaluate_price_snapshot(
     daily_cap = float(ov.get("daily_cap_usd", daily_cap))
     paid_models_count = int(ov.get("paid_models_count", paid_models_count))
 
-    passed = (daily_cap <= 25.0) and (paid_models_count == 0) and budgeter_locked
+    passed = router_present and (daily_cap <= 25.0) and (paid_models_count == 0) and budgeter_locked
 
     return {
         "budgeter_locked": budgeter_locked,
@@ -858,8 +1581,10 @@ def evaluate_lawful_data_sources(
     enabled_sources: list[str] = []
     disabled_sources: list[str] = []
     authority = "unknown"
+    registry_present = False
 
     if registry_path.is_file():
+        registry_present = True
         loaded = yaml.safe_load(registry_path.read_text(encoding="utf-8"))
         if isinstance(loaded, dict):
             authority = str(loaded.get("approval_authority", "unknown"))
@@ -886,7 +1611,7 @@ def evaluate_lawful_data_sources(
     passed_disabled = required_disabled.issubset(set(disabled_sources))
     passed_auth = "Cd (AUTH-04)" in authority
 
-    passed = passed_enabled and passed_disabled and passed_auth
+    passed = registry_present and passed_enabled and passed_disabled and passed_auth
 
     return {
         "approval_authority": authority,
@@ -901,15 +1626,41 @@ def evaluate_lawful_data_sources(
 def evaluate_security_signoff(
     root: Path,
     overrides: Mapping[str, Any] | None = None,
+    artifacts_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Verify 0 secret leaks and 0 privilege escalation events."""
     ov: Mapping[str, Any] = overrides or {}
 
-    secret_leaks = int(ov.get("secret_leaks", 0))
-    privilege_escalations = int(ov.get("privilege_escalation_events", 0))
-    unauthorized_tool_calls = int(ov.get("unauthorized_tool_calls", 0))
+    sec_violations = _measure_security_violations(root, artifacts_dir)
+    if "secret_leaks" in ov:
+        secret_leaks = int(ov["secret_leaks"])
+        leaks_verified = True
+    elif sec_violations is not None:
+        secret_leaks = sec_violations[1]
+        leaks_verified = True
+    else:
+        secret_leaks = 999
+        leaks_verified = False
 
-    passed = (secret_leaks == 0) and (privilege_escalations == 0) and (unauthorized_tool_calls == 0)
+    if "unauthorized_tool_calls" in ov:
+        unauthorized_tool_calls = int(ov["unauthorized_tool_calls"])
+        tools_verified = True
+    elif sec_violations is not None:
+        unauthorized_tool_calls = sec_violations[0]
+        tools_verified = True
+    else:
+        unauthorized_tool_calls = 999
+        tools_verified = False
+
+    privilege_escalations = int(ov.get("privilege_escalation_events", 0))
+
+    passed = (
+        leaks_verified
+        and tools_verified
+        and (secret_leaks == 0)
+        and (privilege_escalations == 0)
+        and (unauthorized_tool_calls == 0)
+    )
 
     return {
         "passed": passed,
@@ -944,13 +1695,17 @@ def evaluate_go_nogo(
                 auth02_granted = True
 
     # 1. Section 10 Thresholds
-    thresholds = evaluate_section_10_thresholds(repo, override_thresholds)
+    thresholds = evaluate_section_10_thresholds(
+        repo, override_thresholds, artifacts_dir=artifacts_dir
+    )
 
     # 2. P0 Tasks
     p0_tasks = evaluate_p0_tasks(repo, override_thresholds)
 
     # 3. Permissions & Egress (S20)
-    permissions = evaluate_permissions_and_egress(repo, override_thresholds)
+    permissions = evaluate_permissions_and_egress(
+        repo, override_thresholds, artifacts_dir=artifacts_dir
+    )
 
     # 4. Price Snapshot
     pricing = evaluate_price_snapshot(repo, override_thresholds)
@@ -959,7 +1714,7 @@ def evaluate_go_nogo(
     data_sources = evaluate_lawful_data_sources(repo, override_thresholds)
 
     # 6. Security Sign-off (secrets=0, privilege-escalation=0)
-    security = evaluate_security_signoff(repo, override_thresholds)
+    security = evaluate_security_signoff(repo, override_thresholds, artifacts_dir=artifacts_dir)
 
     # Collect blockers
     blockers: list[str] = []
@@ -970,10 +1725,17 @@ def evaluate_go_nogo(
                 f"Section 10 [{t.responsible_task}] {t.name}: "
                 f"observed {t.observed}, required {t.threshold}"
             )
+        elif t.status == CheckStatus.NOT_MEASURED:
+            blockers.append(
+                f"Section 10 [{t.responsible_task}] {t.name}: "
+                f"NOT_MEASURED (missing input data, required {t.threshold})"
+            )
 
     for p in p0_tasks:
         if p.status == CheckStatus.FAIL:
             blockers.append(f"P0 Task [{p.task_id}] {p.name} failed ({p.details})")
+        elif p.status == CheckStatus.NOT_VERIFIED:
+            blockers.append(f"P0 Task [{p.task_id}] {p.name} not verified ({p.details})")
 
     if not permissions["passed"]:
         blockers.append(
@@ -1162,10 +1924,13 @@ def generate_release_acceptance_markdown(result: GoNoGoResult) -> str:
     lines.append("")
     lines.append("## 7. Signatures and Release Authority")
     lines.append("")
+    staging_gate_str = (
+        "APPROVED" if result.staging_allowed else "REFUSED (Active blockers must be remediated)"
+    )
     lines.append(
         "- **Responsible Agent:** `QAAgent` (Section 9 #### V90)\n"
         f"- **Gate Evaluation:** `{result.release_status}`\n"
-        "- **Staging Gate:** APPROVED\n"
+        f"- **Staging Gate:** {staging_gate_str}\n"
         "- **Production Gate:** REFUSED (Pending AUTH-06 user traceable sign-off)\n"
     )
     return "\n".join(lines) + "\n"

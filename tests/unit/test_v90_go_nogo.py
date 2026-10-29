@@ -9,6 +9,8 @@ from pathlib import Path
 from techpulse.release.go_nogo import (
     CheckStatus,
     evaluate_go_nogo,
+    evaluate_p0_tasks,
+    evaluate_section_10_thresholds,
     repository_root,
     run_go_nogo,
     write_release_artifacts,
@@ -17,41 +19,63 @@ from techpulse.release.go_nogo import (
 ROOT = repository_root()
 
 
-def test_v90_pass_case(tmp_path: Path) -> None:
-    """Verifies that the current committed codebase passes staging go/no-go."""
+def test_v90_real_evaluation_honest_reporting(tmp_path: Path) -> None:
+    """Verifies honest reporting on the committed codebase without artificial defaults."""
     artifacts_dir = tmp_path / "artifacts"
     result = evaluate_go_nogo(root=ROOT, artifacts_dir=artifacts_dir, auth06_granted=False)
 
     assert result.ticket == "V90"
-    assert result.release_status == "staging READY"
-    assert result.staging_allowed is True
+    # Real dev-split retrieval (nDCG@10=0.4815, Recall@20=0.7083) honestly fails MVP thresholds
+    assert result.release_status == "BLOCKED"
+    assert result.staging_allowed is False
     assert result.production_allowed is False
     assert result.auth06_granted is False
-    assert len(result.blockers) == 0
+    assert len(result.blockers) == 2
+    assert any("nDCG@10" in b for b in result.blockers)
+    assert any("Recall@20" in b for b in result.blockers)
 
     # Verify the 6 gated items are present
     assert len(result.gated_items) == 6
     gated_codes = {g.code for g in result.gated_items}
     assert gated_codes == {"AUTH-02", "AUTH-06", "V99", "M70", "C30_C31", "G20"}
 
-    # Verify Section 10 thresholds: 13 PASS, 1 GATED (V99 soak)
+    # Verify Section 10 thresholds: 11 PASS, 2 FAIL (retrieval dev split), 1 GATED (V99 soak)
     passed_thresholds = [c for c in result.section_10_thresholds if c.status == CheckStatus.PASS]
     gated_thresholds = [c for c in result.section_10_thresholds if c.status == CheckStatus.GATED]
     failed_thresholds = [c for c in result.section_10_thresholds if c.status == CheckStatus.FAIL]
+    not_measured = [c for c in result.section_10_thresholds if c.status == CheckStatus.NOT_MEASURED]
 
-    assert len(passed_thresholds) == 13
+    assert len(passed_thresholds) == 11
     assert len(gated_thresholds) == 1
-    assert len(failed_thresholds) == 0
+    assert len(failed_thresholds) == 2
+    assert len(not_measured) == 0
     assert gated_thresholds[0].responsible_task == "V99"
 
-    # Verify all 29 prior P0 tasks are PASS, V99 is GATED
+    # Verify real metrics observed on real data
+    thresholds_by_name = {c.name: c for c in result.section_10_thresholds}
+    assert thresholds_by_name["正文抽取成功率（可获取内容分母）"].observed == "100.0%"
+    assert thresholds_by_name["必填字段完整率"].observed == "100.0%"
+    assert thresholds_by_name["Precision / Recall"].observed == "1.0000 / 1.0000"
+    assert thresholds_by_name["nDCG@10"].observed == "0.4815"
+    assert thresholds_by_name["Recall@20"].observed == "0.7083"
+    assert thresholds_by_name["Claim 引用覆盖"].observed == "100.0%"
+    assert thresholds_by_name["URL 可追溯"].observed == "100.0%"
+    assert thresholds_by_name["日期/数值一致"].observed == "100.0%"
+    assert thresholds_by_name["独立来源族"].observed == "4"
+    assert thresholds_by_name["Tier-A 来源"].observed == "4"
+    assert thresholds_by_name["红队 fixtures"].observed == "160"
+    assert thresholds_by_name["未授权 Tool Call / Secret 泄漏 / Egress 越权"].observed == "0"
+
+    # Verify all 29 prior P0 tasks are PASS (verified against mapped files), V99 is GATED
     passed_p0 = [p for p in result.p0_tasks if p.status == CheckStatus.PASS]
     gated_p0 = [p for p in result.p0_tasks if p.status == CheckStatus.GATED]
     failed_p0 = [p for p in result.p0_tasks if p.status == CheckStatus.FAIL]
+    not_verified_p0 = [p for p in result.p0_tasks if p.status == CheckStatus.NOT_VERIFIED]
 
     assert len(passed_p0) == 29
     assert len(gated_p0) == 1
     assert len(failed_p0) == 0
+    assert len(not_verified_p0) == 0
     assert gated_p0[0].task_id == "V99"
 
     # Verify security, permissions, price snapshot, and data sources
@@ -74,7 +98,7 @@ def test_v90_pass_case(tmp_path: Path) -> None:
 
     # Verify manifest integrity
     manifest = json.loads(written["manifest"].read_text(encoding="utf-8"))
-    assert manifest["status"] == "staging READY"
+    assert manifest["status"] == "BLOCKED"
     assert manifest["ticket"] == "V90"
     for item in manifest["artifacts"]:
         name = Path(item["path"]).name
@@ -84,13 +108,70 @@ def test_v90_pass_case(tmp_path: Path) -> None:
 
     # Verify release_acceptance.md contents
     markdown = written["release_acceptance"].read_text(encoding="utf-8")
-    assert "staging READY" in markdown
+    assert "BLOCKED" in markdown
     assert "AUTH-02 deploy pending" in markdown
     assert "AUTH-06 production sign-off pending" in markdown
     assert "V99 24h soak not run" in markdown
     assert "M70 optional skipped_not_applicable" in markdown
     assert "C30/C31 off" in markdown
     assert "G20 needs AUTH-06" in markdown
+
+
+def test_v90_passing_case_with_retrieval_overrides(tmp_path: Path) -> None:
+    """Verifies that when retrieval meets thresholds, staging release is READY."""
+    artifacts_dir = tmp_path / "artifacts"
+    result = evaluate_go_nogo(
+        root=ROOT,
+        artifacts_dir=artifacts_dir,
+        auth06_granted=False,
+        override_thresholds={
+            "retrieval_ndcg_at_10": 0.80,
+            "retrieval_recall_at_20": 0.90,
+        },
+    )
+
+    assert result.ticket == "V90"
+    assert result.release_status == "staging READY"
+    assert result.staging_allowed is True
+    assert result.production_allowed is False
+    assert result.auth06_granted is False
+    assert len(result.blockers) == 0
+
+    passed_thresholds = [c for c in result.section_10_thresholds if c.status == CheckStatus.PASS]
+    assert len(passed_thresholds) == 13
+
+
+def test_v90_missing_inputs_give_not_measured_and_block(tmp_path: Path) -> None:
+    """Verifies that missing data/artifacts give NOT_MEASURED / NOT_VERIFIED, never pass."""
+    empty_root = tmp_path / "empty_repo"
+    empty_root.mkdir(parents=True, exist_ok=True)
+
+    # 1. Evaluate thresholds on empty root (no data, no fixtures, no artifacts)
+    thresholds = evaluate_section_10_thresholds(empty_root)
+    not_measured = [t for t in thresholds if t.status == CheckStatus.NOT_MEASURED]
+    # Every measurable threshold with missing data MUST be NOT_MEASURED (V99 is GATED)
+    assert len(not_measured) == 13
+    for t in not_measured:
+        assert t.passed is False
+        assert t.observed == "NOT_MEASURED"
+
+    # 2. Evaluate P0 tasks on empty root (no task files)
+    p0_tasks = evaluate_p0_tasks(empty_root)
+    not_verified = [p for p in p0_tasks if p.status == CheckStatus.NOT_VERIFIED]
+    # All 29 prior P0 tasks must be NOT_VERIFIED (V99 is GATED)
+    assert len(not_verified) == 29
+    for p in not_verified:
+        assert p.passed is False
+        assert "missing evidence" in p.details
+
+    # 3. Overall go/no-go on empty root must be BLOCKED
+    result = evaluate_go_nogo(root=empty_root)
+    assert result.release_status == "BLOCKED"
+    assert result.staging_allowed is False
+    assert result.production_allowed is False
+    assert len(result.blockers) > 0
+    assert any("NOT_MEASURED" in b for b in result.blockers)
+    assert any("not verified" in b for b in result.blockers)
 
 
 def test_v90_failing_thresholds() -> None:
@@ -187,15 +268,28 @@ def test_v90_failing_thresholds() -> None:
 
 def test_v90_auth06_cap_staging_only() -> None:
     """Verifies that absent AUTH-06 strictly caps result at staging-only."""
+    passing_retrieval = {
+        "retrieval_ndcg_at_10": 0.80,
+        "retrieval_recall_at_20": 0.90,
+    }
+
     # When AUTH-06 is absent: staging READY
-    result_staging = evaluate_go_nogo(root=ROOT, auth06_granted=False)
+    result_staging = evaluate_go_nogo(
+        root=ROOT,
+        auth06_granted=False,
+        override_thresholds=passing_retrieval,
+    )
     assert result_staging.release_status == "staging READY"
     assert result_staging.staging_allowed is True
     assert result_staging.production_allowed is False
     assert result_staging.auth06_granted is False
 
     # When AUTH-06 is signed: production READY
-    result_prod = evaluate_go_nogo(root=ROOT, auth06_granted=True)
+    result_prod = evaluate_go_nogo(
+        root=ROOT,
+        auth06_granted=True,
+        override_thresholds=passing_retrieval,
+    )
     assert result_prod.release_status == "production READY"
     assert result_prod.staging_allowed is True
     assert result_prod.production_allowed is True
@@ -205,7 +299,7 @@ def test_v90_auth06_cap_staging_only() -> None:
     result_blocked = evaluate_go_nogo(
         root=ROOT,
         auth06_granted=True,
-        override_thresholds={"secret_leaks": 1},
+        override_thresholds={**passing_retrieval, "secret_leaks": 1},
     )
     assert result_blocked.release_status == "BLOCKED"
     assert result_blocked.staging_allowed is False
@@ -216,37 +310,20 @@ def test_v90_run_go_nogo_persists_expected_files(tmp_path: Path) -> None:
     """Verifies that run_go_nogo writes all expected artifacts and decision docs."""
     run_id = "v90-test-run"
     artifacts_dir = tmp_path / "artifacts"
-    repo_root = tmp_path / "repo"
-    repo_root.mkdir(parents=True, exist_ok=True)
-
-    # Copy needed config files to test repo
-    (repo_root / "config").mkdir(parents=True, exist_ok=True)
-    (repo_root / "config" / "policy.yaml").write_text(
-        (ROOT / "config" / "policy.yaml").read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    (repo_root / "config" / "source_registry.yaml").write_text(
-        (ROOT / "config" / "source_registry.yaml").read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    (repo_root / "config" / "model_router.yaml").write_text(
-        (ROOT / "config" / "model_router.yaml").read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    (repo_root / "config" / "deploy.yaml").write_text(
-        (ROOT / "config" / "deploy.yaml").read_text(encoding="utf-8"), encoding="utf-8"
-    )
-    (repo_root / "data" / "gold").mkdir(parents=True, exist_ok=True)
-    (repo_root / "data" / "gold" / "dedup_gold.jsonl").write_text(
-        (ROOT / "data" / "gold" / "dedup_gold.jsonl").read_text(encoding="utf-8"), encoding="utf-8"
-    )
+    test_repo = tmp_path / "repo"
+    test_repo.mkdir()
 
     result = run_go_nogo(
         run_id=run_id,
         artifacts_dir=artifacts_dir,
-        repo_root=repo_root,
+        repo_root=test_repo,
         auth06_granted=False,
     )
 
-    assert result.release_status == "staging READY"
+    assert result.run_id == run_id
+    assert result.ticket == "V90"
+    assert result.release_status == "BLOCKED"
     assert (artifacts_dir / run_id / "V90" / "go_nogo.json").is_file()
     assert (artifacts_dir / run_id / "V90" / "metrics.json").is_file()
     assert (artifacts_dir / run_id / "V90" / "manifest.json").is_file()
-    assert (repo_root / "docs" / "decisions" / "release_acceptance.md").is_file()
+    assert (test_repo / "docs" / "decisions" / "release_acceptance.md").is_file()

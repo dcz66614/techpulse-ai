@@ -1,17 +1,17 @@
 # Decision: TechPulse-AI Staging Release Acceptance and Security Sign-off (V90)
 
 - **Ticket:** `V90`
-- **Run ID:** `v90-20261028T204448Z`
-- **Generated At:** `2026-10-28T21:07:34.536398+00:00`
-- **Release Status:** **staging READY**
-- **Staging Deployment Allowed:** `True`
+- **Run ID:** `v90-20261029T003539Z`
+- **Generated At:** `2026-10-29T00:35:39.825802+00:00`
+- **Release Status:** **BLOCKED**
+- **Staging Deployment Allowed:** `False`
 - **Production Deployment Allowed:** `False`
 - **AUTH-02 (Staging Env):** `Pending`
 - **AUTH-06 (Production Sign-off):** `Pending`
 
 ## 1. Executive Summary
 
-All Section 10 quantitative thresholds and all P0 implementation tasks have passed verification. Permissions, egress constraints, lawful data sources under AUTH-04, pricing model router safeguards, and zero secret/privilege-escalation checks are verified clean. Because AUTH-06 (production sign-off) has not been granted, release authorization is strictly **staging READY** only. Cloud deployment to production is REFUSED.
+Release gate check has detected one or more failing items. The release is **BLOCKED**. Promotion to staging or production is prohibited until all blockers are remediated.
 
 ## 2. Section 10 Quantitative Thresholds Matrix
 
@@ -20,13 +20,13 @@ All Section 10 quantitative thresholds and all P0 implementation tasks have pass
 | 内容 | 正文抽取成功率（可获取内容分母） | ≥97% | 100.0% | D20 | **PASS** |
 | Schema | 必填字段完整率 | ≥98% | 100.0% | D20 | **PASS** |
 | 去重 | Precision / Recall | ≥0.98 / ≥0.95 | 1.0000 / 1.0000 | D30 | **PASS** |
-| Retrieval | nDCG@10 | ≥0.75 | 1.0000 | I20/I30 | **PASS** |
-| Retrieval | Recall@20 | ≥0.85 | 1.0000 | I20/I30 | **PASS** |
+| Retrieval | nDCG@10 | ≥0.75 | 0.4815 | I20/I30 | **FAIL** |
+| Retrieval | Recall@20 | ≥0.85 | 0.7083 | I20/I30 | **FAIL** |
 | 事实 | Claim 引用覆盖 | ≥95% | 100.0% | Q10 | **PASS** |
 | 血缘 | URL 可追溯 | 100% | 100.0% | D10/Q10 | **PASS** |
 | 数字 | 日期/数值一致 | ≥98% | 100.0% | Q10 | **PASS** |
-| 高置信趋势 | 独立来源族 | ≥3 | 3 | E10 | **PASS** |
-| 高置信趋势 | Tier-A 来源 | ≥2 | 2 | E10 | **PASS** |
+| 高置信趋势 | 独立来源族 | ≥3 | 4 | E10 | **PASS** |
+| 高置信趋势 | Tier-A 来源 | ≥2 | 4 | E10 | **PASS** |
 | 安全 | 红队 fixtures | ≥100 | 160 | Q20 | **PASS** |
 | 安全 | 未授权 Tool Call / Secret 泄漏 / Egress 越权 | 0 | 0 | S20/Q20 | **PASS** |
 | 运维 | 24h P0 运行成功率 | ≥99% | gated (pending V99 soak run) | V99 | **GATED** |
@@ -99,7 +99,8 @@ All Section 10 quantitative thresholds and all P0 implementation tasks have pass
 
 ## 5. Active Blockers
 
-No active blockers for staging release.
+1. Section 10 [I20/I30] nDCG@10: observed 0.4815, required ≥0.75
+2. Section 10 [I20/I30] Recall@20: observed 0.7083, required ≥0.85
 
 ## 6. Gated Items
 
@@ -115,7 +116,7 @@ No active blockers for staging release.
 ## 7. Signatures and Release Authority
 
 - **Responsible Agent:** `QAAgent` (Section 9 #### V90)
-- **Gate Evaluation:** `staging READY`
-- **Staging Gate:** APPROVED
+- **Gate Evaluation:** `BLOCKED`
+- **Staging Gate:** REFUSED (Active blockers must be remediated)
 - **Production Gate:** REFUSED (Pending AUTH-06 user traceable sign-off)
 

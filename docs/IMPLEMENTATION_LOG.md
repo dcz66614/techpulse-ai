@@ -1406,3 +1406,58 @@ $ uv run pytest -q
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 904 passed, 1 deselected, 1 warning in 199.01s (0:03:19)
 ```
+
+## VAfix V90 compute gates from real evidence
+
+- Fixed two BLOCKING review findings in V90 (`src/techpulse/release/go_nogo.py`):
+  1. Section 10 thresholds: eliminated hard-coded default passing values (`1.0 / 3 / 2 / 0`). All metrics are computed from real committed data or artifacts, or by running relevant evaluators:
+     - I30 gold-set retrieval nDCG@10 (0.4815) and Recall@20 (0.7083) evaluated strictly on the dev split only (NOT the sealed TEST set);
+     - Q10 citation coverage (100.0%), URL traceability (100.0%), and numeric/date consistency (100.0%) from Q10 artifacts or sample pipeline (`growth/sample_1.md`);
+     - E10 source families (4) and Tier-A sources (4) evaluated from evidence pack / fixtures;
+     - D20 content extraction rate (100.0%) and schema completeness (100.0%) from clean evaluator / fixtures;
+     - D30 pairwise precision (1.0000) and recall (1.0000) from `data/gold/dedup_gold.jsonl`;
+     - Q20 red team fixtures count (160) from `tests/redteam/cases`;
+     - S20/Q20 violation counts (0) from Q20/S20 audit records and redteam runner;
+     - O30 daily LLM spend ($0.00) from O30 metrics and router config.
+     Any metric whose inputs are missing receives status `NOT_MEASURED` (a blocker for go), never a default pass.
+  2. P0 task verification: eliminated hard-coded PASS statuses. Verified all 29 prior P0 tasks against real mapped evidence files (code, tests, schemas, configs). Any missing piece results in `NOT_VERIFIED` (a blocker), never PASS. V99 remains GATED.
+- Regenerated `artifacts/v90-20261028T204448Z/V90/go_nogo.json` and `docs/decisions/release_acceptance.md` from real results: honestly reports status `BLOCKED` with 2 blockers for dev-split retrieval (nDCG@10=0.4815 < 0.75, Recall@20=0.7083 < 0.85). Staging gate is REFUSED (active blockers must be remediated). AUTH-06 staging-only cap maintained.
+- Added comprehensive unit tests in `tests/unit/test_v90_go_nogo.py` verifying real evaluation honest reporting, passing case with retrieval overrides, AUTH-06 staging-only cap, failing threshold and security violation cases, and proving that missing inputs result in `NOT_MEASURED` / `NOT_VERIFIED` / blockers and no default pass values exist.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.88ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+173 files already formatted
+
+$ uv run mypy
+Success: no issues found in 102 source files
+
+$ uv run pytest -q
+........................................................................ [  7%]
+........................................................................ [ 15%]
+........................................................................ [ 23%]
+........................................................................ [ 31%]
+........................................................................ [ 39%]
+........................................................................ [ 47%]
+........................................................................ [ 55%]
+........................................................................ [ 63%]
+........................................................................ [ 71%]
+........................................................................ [ 79%]
+........................................................................ [ 87%]
+........................................................................ [ 95%]
+..........................................                               [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+906 passed, 1 deselected, 1 warning in 30.91s
+```
