@@ -202,7 +202,10 @@ def retrieve(
             degraded = True
             dense_ids = []
     lexical = BM25Index(
-        tuple((document.source_record_id, document.body) for document in documents)
+        tuple(
+            (document.source_record_id, document.body, getattr(document, "title", None))
+            for document in documents
+        )
     ).search(query, limit_bm25)
     bm25_ids = [hit.doc_id for hit in lexical]
     fuse_limit = min(fuse_k, len(documents))

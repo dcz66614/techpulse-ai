@@ -25,7 +25,7 @@ def test_v90_real_evaluation_honest_reporting(tmp_path: Path) -> None:
     result = evaluate_go_nogo(root=ROOT, artifacts_dir=artifacts_dir, auth06_granted=False)
 
     assert result.ticket == "V90"
-    # Real dev-split retrieval (nDCG@10=0.8771, Recall@20=0.9583) honestly meets MVP thresholds
+    # Real dev-split retrieval (nDCG@10=0.8347, Recall@20=0.9167) honestly meets MVP thresholds
     assert result.release_status == "staging READY"
     assert result.staging_allowed is True
     assert result.production_allowed is False
@@ -54,8 +54,8 @@ def test_v90_real_evaluation_honest_reporting(tmp_path: Path) -> None:
     assert thresholds_by_name["正文抽取成功率（可获取内容分母）"].observed == "100.0%"
     assert thresholds_by_name["必填字段完整率"].observed == "100.0%"
     assert thresholds_by_name["Precision / Recall"].observed == "1.0000 / 1.0000"
-    assert thresholds_by_name["nDCG@10"].observed == "0.8771"
-    assert thresholds_by_name["Recall@20"].observed == "0.9583"
+    assert thresholds_by_name["nDCG@10"].observed == "0.8347"
+    assert thresholds_by_name["Recall@20"].observed == "0.9167"
     assert thresholds_by_name["Claim 引用覆盖"].observed == "100.0%"
     assert thresholds_by_name["URL 可追溯"].observed == "100.0%"
     assert thresholds_by_name["日期/数值一致"].observed == "100.0%"

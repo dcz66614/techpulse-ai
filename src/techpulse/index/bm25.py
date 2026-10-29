@@ -9,8 +9,9 @@ from __future__ import annotations
 
 import math
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any
 
 K1 = 1.2
 B = 0.75
@@ -73,124 +74,200 @@ _ZH_STOP = frozenset(
     }
 )
 
+# A small, domain-neutral technical bilingual lexicon of common general tech terms.
+# Mappings cover core computer science, software engineering, databases/systems,
+# information retrieval, and machine learning terminology.
+#
+# Rules enforced per IRclean specification:
+# - Strictly domain-neutral standard technical concepts.
+# - No corpus-flavoured entries (e.g. no vendor/tool names like "postgres", "sqlite",
+#   or repo concepts like "worktree").
+# - No entries chosen because of the benchmark corpus, gold queries, or gold labels.
+
 _ZH_TO_EN: dict[str, tuple[str, ...]] = {
-    # AI Agents
-    "智能体": ("agent", "agents"),
-    "多智能体": ("multi", "agent", "agents", "collaboration"),
-    "大模型": ("llm", "large", "language", "model", "models"),
-    "本地模型": ("local", "models", "local", "model"),
-    "本地": ("local",),
-    "模型": ("model", "models"),
-    "工具调用": ("tool", "call", "calls", "tools"),
+    # Software Engineering & Developer Tools
+    "代码": ("code",),
+    "审查": ("review", "reviewing"),
+    "补全": ("completion", "complete"),
+    "开发": ("development", "developer", "developers"),
+    "开发者": ("developer", "developers"),
+    "测试": ("testing", "test"),
+    "调试": ("debugging", "debug"),
+    "构建": ("build", "building"),
+    "部署": ("deployment", "deploy"),
+    "终端": ("terminal", "shell"),
     "工具": ("tool", "tools"),
-    "安全边界": ("safety", "boundary", "safe", "sandbox"),
-    "安全": ("safe", "safety"),
-    "沙箱": ("sandbox", "sandboxes"),
-    "评测基准": ("benchmark", "benchmarks"),
-    "基准": ("benchmark", "benchmarks"),
-    "评测": ("benchmark", "eval", "evaluating", "evaluation"),
-    "评估": ("evaluating", "evaluation", "benchmark", "eval"),
-    "任务分解": ("decompose", "task", "tasks", "decomposition"),
-    "规划": ("plan", "planner", "planning"),
-    "记忆": ("memory",),
-    "反思": ("reflection",),
-    "提示注入": ("prompt", "injection"),
-    "最小权限": ("least", "privilege", "permissions"),
-    # RAG
-    "检索增强生成": ("retrieval", "augmented", "generation", "rag"),
-    "检索管线": ("retrieval", "pipelines", "pipeline"),
-    "检索": ("retrieval", "search", "retrieve"),
+    "框架": ("framework", "frameworks"),
+    "接口": ("interface", "api"),
+    "配置": ("configuration", "config"),
+    "日志": ("logging", "logs", "log"),
+    "工作流": ("workflow", "workflows"),
+    # Systems & Databases
+    "数据库": ("database", "databases"),
+    "关系数据库": ("relational", "database", "databases"),
+    "关系": ("relational",),
+    "索引": ("index", "indexes", "indexing"),
+    "存储": ("storage", "store"),
+    "内存": ("memory",),
+    "缓存": ("cache", "caching"),
+    "并发": ("concurrency", "concurrent"),
+    "分布式": ("distributed",),
     "管线": ("pipeline", "pipelines"),
-    "混合检索": ("hybrid", "retrieval", "hybrid", "search"),
+    "流水线": ("pipeline", "pipelines"),
+    "架构": ("architecture",),
+    "性能": ("performance",),
+    "延迟": ("latency",),
+    "吞吐量": ("throughput",),
+    "安全": ("security", "safety"),
+    "沙箱": ("sandbox", "sandboxes"),
+    "权限": ("permission", "privilege"),
+    # Information Retrieval & Search
+    "检索": ("retrieval", "search", "retrieve"),
+    "搜索": ("search", "retrieval"),
+    "查询": ("query", "queries"),
+    "向量": ("vector", "vectors"),
+    "向量数据库": ("vector", "database", "databases"),
+    "向量检索": ("vector", "search", "retrieval"),
+    "混合检索": ("hybrid", "retrieval", "search"),
     "混合": ("hybrid",),
     "重排": ("rerank", "reranking"),
-    "引用一致性": ("citation", "consistency", "coverage"),
-    "引用": ("citation", "citations"),
-    "一致性": ("consistency",),
-    "幻觉": ("hallucination", "hallucinations"),
-    "分块策略": ("chunking", "strategies", "chunking"),
-    "分块": ("chunking", "chunk", "chunks"),
-    "稀疏检索": ("sparse", "retrieval", "bm25"),
-    "稠密检索": ("dense", "retrieval", "vector"),
-    "证据": ("grounded", "grounding", "evidence"),
-    # Vector Databases
-    "关系数据库": ("relational", "databases", "database", "postgres", "sqlite"),
-    "数据库": ("database", "databases", "store"),
-    "关系": ("relational",),
-    "向量检索": ("vector", "search", "vector", "retrieval"),
-    "向量数据库": ("vector", "database", "vector", "databases"),
-    "向量索引": ("vector", "index", "indexes"),
-    "向量": ("vector", "vectors"),
-    "近似最近邻": ("approximate", "nearest", "neighbor", "ann"),
-    "最近邻": ("nearest", "neighbor"),
-    "召回率": ("recall",),
+    "排序": ("ranking", "rank"),
     "召回": ("recall",),
-    "延迟": ("latency",),
-    "过滤": ("filtered", "filter"),
-    # Developer Tools
-    "终端": ("terminal", "shell", "ui"),
-    "代码补全": ("code", "completion"),
-    "代码审查": ("code", "review"),
-    "代码": ("code",),
-    "审查": ("review",),
-    "补全": ("completion",),
-    "助手": ("assistant", "assistants"),
-    "开发者": ("developer", "developers"),
-    "格式化": ("formatter", "format"),
-    "管理工具": ("tool", "tools", "worktree", "management"),
-    "工作树": ("worktree", "worktrees"),
-    "持续集成": ("ci", "pipeline"),
-    "调试": ("debug", "debugging"),
-    "结构化日志": ("structured", "logs", "logging"),
+    "召回率": ("recall",),
+    "相关性": ("relevance", "relevant"),
+    "分块": ("chunking", "chunks", "chunk"),
+    "引用": ("citation", "citations"),
+    "特征": ("feature", "features"),
+    "嵌入": ("embedding", "embeddings"),
+    "聚类": ("clustering", "cluster"),
+    "分类": ("classification", "classify"),
+    # AI & Machine Learning
+    "模型": ("model", "models"),
+    "大模型": ("llm", "large", "language", "model", "models"),
+    "智能体": ("agent", "agents"),
+    "多智能体": ("multi", "agent", "agents"),
+    "训练": ("training", "train"),
+    "推理": ("inference",),
+    "微调": ("tuning", "fine"),
+    "提示": ("prompt", "prompts"),
+    "评估": ("evaluation", "evaluating", "evaluate"),
+    "评测": ("evaluation", "benchmark", "benchmarks"),
+    "基准": ("benchmark", "benchmarks"),
+    "规划": ("planning", "plan", "planner"),
+    "记忆": ("memory",),
+    "反思": ("reflection",),
+    "幻觉": ("hallucination", "hallucinations"),
+    "优化": ("optimization", "optimize"),
+    "监控": ("monitoring", "monitor"),
+    "指标": ("metric", "metrics"),
 }
 
 _EN_TO_ZH: dict[str, tuple[str, ...]] = {
-    "agent": ("智能体",),
-    "agents": ("智能体",),
-    "sandbox": ("沙箱",),
-    "sandboxes": ("沙箱",),
-    "safe": ("安全",),
-    "safety": ("安全",),
-    "boundary": ("边界",),
-    "benchmark": ("基准", "评测"),
-    "benchmarks": ("基准", "评测"),
-    "evaluating": ("评估", "评测"),
-    "evaluation": ("评估", "评测"),
-    "pipeline": ("管线",),
-    "pipelines": ("管线",),
-    "retrieval": ("检索",),
-    "retrieve": ("检索",),
-    "vector": ("向量",),
-    "vectors": ("向量",),
+    # Software Engineering & Developer Tools
+    "code": ("代码",),
+    "review": ("审查",),
+    "completion": ("补全",),
+    "developer": ("开发者", "开发"),
+    "developers": ("开发者", "开发"),
+    "testing": ("测试",),
+    "test": ("测试",),
+    "debug": ("调试",),
+    "debugging": ("调试",),
+    "build": ("构建",),
+    "deployment": ("部署",),
+    "deploy": ("部署",),
+    "terminal": ("终端",),
+    "shell": ("终端",),
+    "tool": ("工具",),
+    "tools": ("工具",),
+    "framework": ("框架",),
+    "api": ("接口",),
+    "interface": ("接口",),
+    "config": ("配置",),
+    "configuration": ("配置",),
+    "log": ("日志",),
+    "logs": ("日志",),
+    "logging": ("日志",),
+    "workflow": ("工作流",),
+    # Systems & Databases
     "database": ("数据库",),
     "databases": ("数据库",),
     "relational": ("关系", "关系数据库"),
-    "worktree": ("工作树",),
-    "worktrees": ("工作树",),
-    "terminal": ("终端",),
-    "citation": ("引用",),
-    "citations": ("引用",),
-    "hallucination": ("幻觉",),
-    "hallucinations": ("幻觉",),
-    "chunking": ("分块",),
+    "index": ("索引",),
+    "indexes": ("索引",),
+    "indexing": ("索引",),
+    "storage": ("存储",),
+    "store": ("存储",),
+    "memory": ("内存", "记忆"),
+    "cache": ("缓存",),
+    "caching": ("缓存",),
+    "concurrency": ("并发",),
+    "distributed": ("分布式",),
+    "pipeline": ("管线", "流水线"),
+    "pipelines": ("管线", "流水线"),
+    "architecture": ("架构",),
+    "performance": ("性能",),
     "latency": ("延迟",),
-    "recall": ("召回", "召回率"),
-    "completion": ("补全",),
-    "review": ("审查",),
-    "developer": ("开发者",),
-    "developers": ("开发者",),
-    "planner": ("规划",),
-    "planning": ("规划",),
-    "decompose": ("分解",),
-    "memory": ("记忆",),
+    "throughput": ("吞吐量",),
+    "security": ("安全",),
+    "safety": ("安全",),
+    "sandbox": ("沙箱",),
+    "sandboxes": ("沙箱",),
+    "permission": ("权限",),
+    "privilege": ("权限",),
+    # Information Retrieval & Search
+    "retrieval": ("检索",),
+    "retrieve": ("检索",),
+    "search": ("搜索", "检索"),
+    "query": ("查询",),
+    "queries": ("查询",),
+    "vector": ("向量",),
+    "vectors": ("向量",),
     "hybrid": ("混合",),
     "rerank": ("重排",),
     "reranking": ("重排",),
-    "formatter": ("格式化",),
-    "format": ("格式化",),
-    "postgres": ("关系数据库",),
-    "pgvector": ("向量数据库", "关系数据库"),
-    "sqlite": ("关系数据库",),
+    "ranking": ("排序",),
+    "rank": ("排序",),
+    "recall": ("召回",),
+    "relevance": ("相关性",),
+    "chunk": ("分块",),
+    "chunks": ("分块",),
+    "chunking": ("分块",),
+    "citation": ("引用",),
+    "citations": ("引用",),
+    "feature": ("特征",),
+    "features": ("特征",),
+    "embedding": ("嵌入",),
+    "embeddings": ("嵌入",),
+    "cluster": ("聚类",),
+    "clustering": ("聚类",),
+    "classification": ("分类",),
+    # AI & Machine Learning
+    "model": ("模型",),
+    "models": ("模型",),
+    "llm": ("大模型",),
+    "agent": ("智能体",),
+    "agents": ("智能体",),
+    "training": ("训练",),
+    "inference": ("推理",),
+    "prompt": ("提示",),
+    "prompts": ("提示",),
+    "evaluation": ("评估", "评测"),
+    "evaluate": ("评估",),
+    "evaluating": ("评估", "评测"),
+    "benchmark": ("基准", "评测"),
+    "benchmarks": ("基准", "评测"),
+    "planning": ("规划",),
+    "plan": ("规划",),
+    "planner": ("规划",),
+    "reflection": ("反思",),
+    "hallucination": ("幻觉",),
+    "hallucinations": ("幻觉",),
+    "optimization": ("优化",),
+    "monitor": ("监控",),
+    "monitoring": ("监控",),
+    "metric": ("指标",),
+    "metrics": ("指标",),
 }
 
 
@@ -228,19 +305,50 @@ class LexicalHit:
 
 
 class BM25Index:
-    """In-memory Okapi BM25 over ``(doc_id, text)`` pairs with field weighting."""
+    """In-memory Okapi BM25 with explicit record title field weighting."""
 
-    def __init__(self, documents: Sequence[tuple[str, str]]) -> None:
+    def __init__(
+        self,
+        documents: Sequence[
+            tuple[str, str] | tuple[str, str, str | None] | Mapping[str, object] | Any
+        ],
+    ) -> None:
         self._ids: list[str] = []
         self._tfs: list[dict[str, int]] = []
         self._lengths: list[int] = []
         document_frequency: dict[str, int] = {}
-        for doc_id, text in documents:
+        for item in documents:
+            if isinstance(item, tuple):
+                doc_id = str(item[0])
+                text = str(item[1])
+                title = str(item[2]) if len(item) > 2 and isinstance(item[2], str) else None
+            elif isinstance(item, Mapping):
+                doc_id = str(item.get("source_record_id") or item.get("doc_id") or "")
+                text = str(
+                    item.get("body") or item.get("text") or item.get("abstract_or_excerpt") or ""
+                )
+                title_val = item.get("title")
+                title = str(title_val) if isinstance(title_val, str) else None
+            else:
+                doc_id = str(getattr(item, "source_record_id", getattr(item, "doc_id", "")))
+                text = str(getattr(item, "body", getattr(item, "text", "")))
+                title_val = getattr(item, "title", None)
+                title = str(title_val) if isinstance(title_val, str) else None
+
             counts: dict[str, int] = {}
             tokens = tokenize(text)
-            for index, token in enumerate(tokens):
-                weight = 2 if index < 12 else 1
-                counts[token] = counts.get(token, 0) + weight
+            if title and title.strip():
+                title_tokens = set(tokenize(title))
+                for token in tokens:
+                    weight = 2 if token in title_tokens else 1
+                    counts[token] = counts.get(token, 0) + weight
+                for token in tokenize(title):
+                    if token not in counts:
+                        counts[token] = 2
+            else:
+                for token in tokens:
+                    counts[token] = counts.get(token, 0) + 1
+
             self._ids.append(doc_id)
             self._tfs.append(counts)
             length = sum(counts.values())

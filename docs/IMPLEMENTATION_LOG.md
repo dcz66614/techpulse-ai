@@ -1517,3 +1517,62 @@ $ uv run pytest -q
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 906 passed, 1 deselected, 1 warning in 27.10s
 ```
+
+## IRclean generalise lexicon, title field weighting
+
+- Addressed review notes following IRfix:
+  1. Lexicon generalization (`src/techpulse/index/bm25.py`):
+     - Removed corpus-flavoured and benchmark-tailored entries from `_ZH_TO_EN` and `_EN_TO_ZH` (including mappings involving "postgres", "sqlite", "worktree", "pgvector", and query-specific compound phrases).
+     - Generalized into a small, domain-neutral technical bilingual lexicon of common general computer science, software engineering, databases/systems, information retrieval, and AI terms.
+     - Documented in code comments: no entries chosen because of the benchmark corpus, gold queries, or gold labels.
+  2. Explicit title field weighting (`src/techpulse/index/bm25.py`, `src/techpulse/index/hybrid.py`, `src/techpulse/index/embed.py`):
+     - Replaced positional heuristic (`index < 12`) in BM25 with explicit record title field weighting.
+     - `BM25Index` now accepts 2-tuples `(doc_id, text)`, 3-tuples `(doc_id, text, title)`, or normalized record mappings.
+     - When `title` is absent, falls back to unweighted scoring (no title boost). When present, weights title terms with a 2.0x boost factor.
+     - Updated `CorpusDocument` to carry `title: str | None = None` and updated `hybrid.py` and `go_nogo.py` to supply the explicit title field.
+- Dev-split retrieval evaluation:
+  - Before (IRfix baseline): nDCG@10 = 0.8771, Recall@20 = 0.9583
+  - After (IRclean): nDCG@10 = 0.8347, Recall@20 = 0.9167
+  - Both metrics comfortably exceed Section 10 thresholds (nDCG@10 >= 0.75, Recall@20 >= 0.85).
+- Re-ran V90 release gate (`scripts/go_nogo.py`) and regenerated `docs/decisions/release_acceptance.md`:
+  - Release status remains `staging READY` (0 blockers, all 13 Section 10 thresholds PASS).
+- Rebuilt samples via `scripts/build_samples.py` and verified `tests/growth/test_samples.py` passes.
+- Updated `tests/unit/test_v90_go_nogo.py` with honest observed metrics and added BM25 title weighting and domain-neutral lexicon unit tests in `tests/evaluation/test_retrieval.py`.
+
+Real check output:
+
+```text
+$ uv lock --check
+Resolved 88 packages in 0.77ms
+
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+175 files already formatted
+
+$ uv run mypy
+Success: no issues found in 102 source files
+
+$ uv run pytest -q
+........................................................................ [  7%]
+........................................................................ [ 15%]
+........................................................................ [ 23%]
+........................................................................ [ 31%]
+........................................................................ [ 39%]
+........................................................................ [ 47%]
+........................................................................ [ 55%]
+........................................................................ [ 63%]
+........................................................................ [ 71%]
+........................................................................ [ 79%]
+........................................................................ [ 87%]
+........................................................................ [ 95%]
+............................................                             [100%]
+============================== warnings summary ===============================
+.venv\Lib\site-packages\fastapi\testclient.py:1
+  C:\Users\Du200\Projects\techpulse-ai-codex\.venv\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+    from starlette.testclient import TestClient as TestClient  # noqa
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+908 passed, 1 deselected, 1 warning in 30.43s
+```

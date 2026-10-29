@@ -179,6 +179,7 @@ def prepare_corpus(
                 body=text,
                 content_sha256=index_hash,
                 embedding=tuple(vector),
+                title=_text(record.get("title")),
             )
         )
         by_id[key] = record

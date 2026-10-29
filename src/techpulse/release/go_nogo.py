@@ -532,6 +532,7 @@ def _measure_i30_dev(root: Path) -> tuple[float, float] | None:
                     body=b,
                     content_sha256="0" * 64,
                     embedding=tuple(v),
+                    title=d.get("title"),
                 )
             )
 

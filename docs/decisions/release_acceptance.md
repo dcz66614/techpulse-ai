@@ -1,8 +1,8 @@
 # Decision: TechPulse-AI Staging Release Acceptance and Security Sign-off (V90)
 
 - **Ticket:** `V90`
-- **Run ID:** `v90-20261029T011507Z`
-- **Generated At:** `2026-10-29T01:15:07.098464+00:00`
+- **Run ID:** `v90-20261029T015021Z`
+- **Generated At:** `2026-10-29T01:50:21.374926+00:00`
 - **Release Status:** **staging READY**
 - **Staging Deployment Allowed:** `True`
 - **Production Deployment Allowed:** `False`
@@ -20,8 +20,8 @@ All Section 10 quantitative thresholds and all P0 implementation tasks have pass
 | 内容 | 正文抽取成功率（可获取内容分母） | ≥97% | 100.0% | D20 | **PASS** |
 | Schema | 必填字段完整率 | ≥98% | 100.0% | D20 | **PASS** |
 | 去重 | Precision / Recall | ≥0.98 / ≥0.95 | 1.0000 / 1.0000 | D30 | **PASS** |
-| Retrieval | nDCG@10 | ≥0.75 | 0.8771 | I20/I30 | **PASS** |
-| Retrieval | Recall@20 | ≥0.85 | 0.9583 | I20/I30 | **PASS** |
+| Retrieval | nDCG@10 | ≥0.75 | 0.8347 | I20/I30 | **PASS** |
+| Retrieval | Recall@20 | ≥0.85 | 0.9167 | I20/I30 | **PASS** |
 | 事实 | Claim 引用覆盖 | ≥95% | 100.0% | Q10 | **PASS** |
 | 血缘 | URL 可追溯 | 100% | 100.0% | D10/Q10 | **PASS** |
 | 数字 | 日期/数值一致 | ≥98% | 100.0% | Q10 | **PASS** |

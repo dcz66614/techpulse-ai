@@ -198,6 +198,7 @@ class CorpusDocument:
     body: str
     content_sha256: str
     embedding: tuple[float, ...] | None
+    title: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1007,6 +1008,7 @@ def _document(row: sqlite3.Row, dimension: int) -> CorpusDocument:
     embedding: tuple[float, ...] | None = None
     if isinstance(blob, bytes):
         embedding = _unpack(blob, dimension)
+    title = _cell_str(row, "title") if "title" in row.keys() else None
     return CorpusDocument(
         vector_id=_cell_str(row, "vector_id"),
         chunk_id=_cell_str(row, "chunk_id"),
@@ -1017,6 +1019,7 @@ def _document(row: sqlite3.Row, dimension: int) -> CorpusDocument:
         body=_cell_str(row, "body"),
         content_sha256=_cell_str(row, "content_sha256"),
         embedding=embedding,
+        title=title,
     )
 
 

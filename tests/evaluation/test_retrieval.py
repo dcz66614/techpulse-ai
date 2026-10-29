@@ -73,6 +73,69 @@ def test_bm25_ranks_a_matching_document_first() -> None:
     assert all(hit.doc_id != "bread" for hit in hits)
 
 
+def test_bm25_explicit_title_weighting_and_fallback() -> None:
+    # doc-title has query term in explicit title; doc-body has same term in body only.
+    # With explicit title boost, doc-title must rank first.
+    index_with_title = BM25Index(
+        (
+            ("doc-body", "we study large language models in autonomous systems", "agent workflows"),
+            ("doc-title", "comprehensive analysis of autonomous systems", "large language models"),
+        )
+    )
+    hits_title = index_with_title.search("large language models")
+    assert hits_title[0].doc_id == "doc-title"
+
+    # When title is absent (2-tuples), no title boost is applied
+    index_fallback = BM25Index(
+        (
+            ("doc-1", "large language models in autonomous systems"),
+            ("doc-2", "comprehensive analysis of autonomous systems"),
+        )
+    )
+    hits_fallback = index_fallback.search("large language models")
+    assert len(hits_fallback) == 1
+    assert hits_fallback[0].doc_id == "doc-1"
+
+    # D20/D40 normalized record mapping with explicit title field
+    index_record = BM25Index(
+        (
+            {
+                "source_record_id": "rec-1",
+                "title": "vector index optimization",
+                "body": "deep dive into approximate search algorithms",
+            },
+            {
+                "source_record_id": "rec-2",
+                "title": "distributed cache architecture",
+                "body": "vector index tuning for enterprise workloads",
+            },
+        )
+    )
+    hits_rec = index_record.search("vector index")
+    assert hits_rec[0].doc_id == "rec-1"
+
+
+def test_domain_neutral_lexicon() -> None:
+    from techpulse.index.bm25 import _EN_TO_ZH, _ZH_TO_EN, tokenize
+
+    # Strictly domain-neutral: no corpus/vendor specific terms
+    forbidden = {"postgres", "sqlite", "pgvector", "worktree", "worktrees", "工作树"}
+    assert forbidden.isdisjoint(_EN_TO_ZH.keys())
+    assert forbidden.isdisjoint(_ZH_TO_EN.keys())
+
+    # Standard general CS/AI terms are mapped
+    assert "智能体" in _ZH_TO_EN
+    assert "agent" in _ZH_TO_EN["智能体"]
+    assert "数据库" in _ZH_TO_EN
+    assert "database" in _ZH_TO_EN["数据库"]
+    assert "向量" in _ZH_TO_EN
+    assert "vector" in _ZH_TO_EN["向量"]
+
+    toks = tokenize("智能体 数据库")
+    assert "agent" in toks
+    assert "database" in toks
+
+
 def test_rrf_fuses_both_lists() -> None:
     dense = ["a", "b", "c"]
     lexical = ["b", "c", "d"]
