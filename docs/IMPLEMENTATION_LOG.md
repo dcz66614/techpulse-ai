@@ -1673,3 +1673,49 @@ $ uv run pytest -q
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
 918 passed, 1 deselected, 1 warning in 59.43s
 ```
+
+## GQX crosscheck of extended retrieval labels
+
+- Completed the independent second annotator pass over
+  `data/gold/retrieval/queries_ext.jsonl` as `big-pickle (opencode)`. No
+  retriever was run while labelling, the sealed TEST split was never read,
+  and retrieval code and thresholds were untouched.
+- Every row now carries `crosschecker: "big-pickle (opencode)"` and
+  `crosscheck: "agree" | "adjusted"`. Adjusted rows record the independent
+  grade in `crosscheck_label`, any missed document in `added_doc_ids`, and a
+  one-line quoted `crosscheck_justification`.
+- Agreement: 19/24 rows (79.2%) and 70/72 existing label pairs (97.2%).
+  Five rows adjusted: four missed grade-1 labels added (`ag-02` twice,
+  `vdb-02`, `vdb-06`) and two conservative downgrades of `dev-01` from 1
+  to 0 (`dev-en-ext-02`, `dev-zh-ext-03`).
+- Updated `tests/evaluation/test_gq_split_eval.py` to require the crosscheck
+  fields, validate `agree`/`adjusted`, 0-2 label values, and grade-1 added
+  ids, and assert the 19/5 accounting.
+- Ran the per-split evaluation once after labelling:
+
+```text
+$ uv run python -m techpulse.evaluation.split_eval .
+split   queries  nDCG@10  Recall@20   en(ndcg/recall)      zh(ndcg/recall)
+dev           8  0.8347   0.9167   0.8444/0.9167        0.8249/0.9167
+dev2         13  0.8572   1.0000   0.9102/1.0000        0.7725/1.0000
+heldout       11  0.8954   0.8182   0.9566/0.8750        0.8605/0.7857
+```
+
+- Checks:
+
+```text
+$ uv run ruff check .
+All checks passed!
+
+$ uv run ruff format --check .
+166 files already formatted
+
+$ uv run mypy
+Success: no issues found in 104 source files
+
+$ uv run pytest -q
+919 passed, 1 deselected, 1 warning in 31.50s
+```
+
+`GQX_report.md` is left uncommitted as the ticket asks. No network access,
+no `.env` read, and no push.

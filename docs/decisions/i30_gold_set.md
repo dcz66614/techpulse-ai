@@ -159,11 +159,15 @@ frozen I30 freeze record above. `queries.jsonl` is unchanged and keeps its
   labelled document text and is answerable from `data/gold/retrieval/`
   `corpus.jsonl` only. No documents were invented and no retrieval run was
   used to choose labels.
-- **Single annotator.** The extension is a single-annotator pass by
-  `glm-5.3-flash-free (opencode)` recorded in each row's `labeller` field;
-  `crosscheck` is `"pending"` until an independent second pass resolves
-  disagreements. Until crosschecked, results on `dev2`/`heldout` are
-  diagnostic only.
+- **Crosscheck.** The first pass by `glm-5.3-flash-free (opencode)` is
+  recorded in each row's `labeller` field. Ticket GQX completed the
+  independent second pass by `big-pickle (opencode)`: every row now has
+  `crosscheck` (`agree` / `adjusted`), adjusted rows carry
+  `crosscheck_label`, `added_doc_ids`, and `crosscheck_justification`, and
+  `crosschecker` is set. Disagreements resolve to the lower grade; missed
+  relevant documents are added only at grade 1. The file is `19 agree /
+  5 adjusted`, with four added grade-1 labels. Results on `dev2`/`heldout`
+  remain diagnostic and are not used for tuning `heldout`.
 - **Held-out is never used for tuning.** The `heldout` split (and the sealed
   I30 `test` split) is never used to tune thresholds, prompts, lexicons, or
   retrievers. It is reported only alongside `dev`/`dev2`, after all tuning

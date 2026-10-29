@@ -1,11 +1,13 @@
-"""GQ extension gold set: shape, provenance, and sealed-split safety tests.
+"""GQ extension gold set: crosscheck, shape, provenance, and sealed-split tests.
 
-The extension queries file (``data/gold/retrieval/queries_ext.jsonl``) is a
-single-annotator labelling pass with ``crosscheck: pending``. These tests
-verify the file is well-formed, grounded in the real corpus, that the
-dev2/heldout split assignment is the documented hash rule, that the splits
-are disjoint from each other and from the shipped I30 set, and that the
-reporting code path never loads or runs the sealed TEST split.
+The extension queries file (``data/gold/retrieval/queries_ext.jsonl``) carries
+the GQX independent crosscheck: every row is ``crosscheck: agree`` or
+``crosscheck: adjusted`` with ``crosschecker`` set, and adjusted rows record
+the second annotator's labels and any added document ids. These tests verify
+the file is well-formed, grounded in the real corpus, that the dev2/heldout
+split assignment is the documented hash rule, that the splits are disjoint
+from each other and from the shipped I30 set, and that the reporting code
+path never loads or runs the sealed TEST split.
 """
 
 from __future__ import annotations
@@ -38,6 +40,8 @@ EXT_QUERIES_PATH = RETRIEVAL_DIR / "queries_ext.jsonl"
 
 TOPICS = {"ai_agents", "rag", "vector_databases", "developer_tools"}
 LABELLER = "glm-5.3-flash-free (opencode)"
+CROSSCHECKER = "big-pickle (opencode)"
+CROSSCHECK_VALUES = {"agree", "adjusted"}
 
 
 def _jsonl(path: Path) -> list[dict[str, object]]:
@@ -67,7 +71,8 @@ def test_extension_file_is_well_formed() -> None:
     for row in rows:
         assert row["split"] in {"dev2", "heldout"}
         assert row["labeller"] == LABELLER
-        assert row["crosscheck"] == "pending"
+        assert row["crosscheck"] in CROSSCHECK_VALUES
+        assert row["crosschecker"] == CROSSCHECKER
         assert row["language"] in {"en", "zh"}
         assert row["topic"] in TOPICS
         assert isinstance(row["query"], str) and row["query"].strip()
@@ -77,8 +82,53 @@ def test_extension_file_is_well_formed() -> None:
         grades = [int(grade) for grade in relevance.values()]
         assert all(0 <= grade <= 2 for grade in grades)
         assert any(grade > 0 for grade in grades)
+        if row["crosscheck"] == "adjusted":
+            crosscheck_label = row["crosscheck_label"]
+            assert isinstance(crosscheck_label, dict) and crosscheck_label
+            for doc_id, grade in crosscheck_label.items():
+                assert isinstance(doc_id, str)
+                assert isinstance(grade, int) and not isinstance(grade, bool)
+                assert 0 <= grade <= 2
+                assert doc_id in relevance
+                assert relevance[doc_id] == grade
+            added = row["added_doc_ids"]
+            assert isinstance(added, list)
+            assert all(isinstance(doc_id, str) for doc_id in added)
+            for doc_id in added:
+                assert doc_id in relevance
+                assert relevance[doc_id] == 1
+            assert isinstance(row["crosscheck_justification"], str)
+            assert len(row["crosscheck_justification"]) > 20
     # The loader accepts every row: the file is valid gold JSONL.
     assert len(load_gold_queries(EXT_QUERIES_PATH)) == 24
+
+
+def test_crosscheck_records_second_annotator_decisions() -> None:
+    rows = _jsonl(EXT_QUERIES_PATH)
+    counts = Counter(str(row["crosscheck"]) for row in rows)
+    assert counts == {"agree": 19, "adjusted": 5}
+    adjusted = [row for row in rows if row["crosscheck"] == "adjusted"]
+    assert {str(row["query_id"]) for row in adjusted} == {
+        "ag-zh-ext-01",
+        "ag-zh-ext-03",
+        "vdb-en-ext-03",
+        "dev-en-ext-02",
+        "dev-zh-ext-03",
+    }
+    for row in adjusted:
+        relevance = row["relevance"]
+        crosscheck_label = row["crosscheck_label"]
+        added = row["added_doc_ids"]
+        assert isinstance(relevance, dict)
+        assert isinstance(crosscheck_label, dict)
+        assert isinstance(added, list)
+        for doc_id, grade in crosscheck_label.items():
+            assert isinstance(doc_id, str)
+            assert isinstance(grade, int) and not isinstance(grade, bool)
+            # Disagreements are conservative downgrades (0) or missed
+            # relevant documents added at grade 1.
+            assert grade == (1 if doc_id in added else 0)
+            assert relevance[doc_id] == grade
 
 
 def test_every_labelled_doc_id_exists_in_corpus() -> None:
