@@ -119,3 +119,6 @@ No active blockers for staging release.
 - **Staging Gate:** APPROVED
 - **Production Gate:** APPROVED (Local v1.0 release only; public deployment & outreach REFUSED)
 
+## Known-Limits Note
+
+- Held-out Retrieval Recall@20 (0.8182 on `data/gold/retrieval/queries_ext.jsonl`): see [heldout_recall_known_limit.md](heldout_recall_known_limit.md).
