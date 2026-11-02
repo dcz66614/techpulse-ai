@@ -752,3 +752,173 @@ def test_reproduce_and_verify_fixed_hourly_grid_cadence_after_gap_and_restart() 
         due4 = runner2.compute_next_due()
         assert due4 == t0 + timedelta(hours=8)  # 09:59 UTC
         assert (due4 - due3).total_seconds() == 3600.0
+
+# ---------------------------------------------------------------------------
+# 7. SRCfix3: Soak grid never reuses an executed slot
+# ---------------------------------------------------------------------------
+
+
+class SubsecondFakeClock:
+    """Fake clock with sub-second precision to reproduce truncation divergence."""
+
+    def __init__(self, start_dt: datetime) -> None:
+        self.current_time = start_dt
+        self.sleep_calls: list[float] = []
+
+    def now(self) -> datetime:
+        return self.current_time
+
+    def sleep(self, seconds: float) -> None:
+        self.sleep_calls.append(seconds)
+        self.current_time += timedelta(seconds=seconds)
+
+    def advance(self, seconds: float) -> None:
+        self.current_time += timedelta(seconds=seconds)
+
+
+def test_srcfix3_soak_grid_never_reuses_executed_slot() -> None:
+    """Regression test for SRCfix3 (Ticket TechPulse-AI P0004):
+
+    Assert that when start_time has sub-second precision (e.g. 22:41:07.618492)
+    and cycle timestamps in cycles.jsonl are truncated to whole seconds (22:41:07Z, 22:44:07Z):
+    1. Slot k is followed by slot k + 1 (never reusing slot k).
+    2. Cycles that take longer than 0s (e.g. 66s) do not cause slot reuse or back-to-back runs.
+    3. On restart after a gap, the overdue cycle runs immediately once, and the next cycle
+       correctly snaps to the fixed grid without duplicating any slot.
+    4. Evaluated evidence preserves gap visibility and PASS criteria remain unchanged.
+    """
+    # start_time has sub-second precision: 22:41:07.618492 UTC
+    t0 = datetime(2026, 11, 2, 22, 41, 7, 618492, tzinfo=UTC)
+    interval_minutes = 3.0
+    interval_seconds = 180.0
+    clock = SubsecondFakeClock(t0)
+
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        artifacts = base / "artifacts"
+        docs = base / "docs"
+        db = base / "soak.sqlite"
+        stubs = make_stub_activities()
+
+        runner1 = SoakRunner(
+            artifacts_dir=artifacts,
+            docs_dir=docs,
+            database_path=db,
+            clock=clock,
+            interval_minutes=interval_minutes,
+            target_hours=1.0,
+            activities=stubs,
+        )
+
+        assert runner1.start_time() == t0
+        assert runner1.start_time().microsecond == 618492
+
+        # Cycle 1 (slot 0: 22:41:07.618492)
+        rec1 = runner1.execute_cycle(1)
+        assert rec1.success is True
+        # Timestamp in cycles.jsonl is truncated to whole seconds:
+        assert rec1.timestamp == "2026-11-02T22:41:07Z"
+        # Simulate Cycle 1 taking 67.0 seconds of work:
+        clock.advance(67.0)
+        assert clock.now() == t0 + timedelta(seconds=67.0)
+
+        # compute_next_due for Cycle 2: MUST be slot 1 (t0 + 180s = 22:44:07.618492)
+        due2 = runner1.compute_next_due()
+        assert due2 == t0 + timedelta(seconds=interval_seconds)
+        assert due2 > clock.now()  # 22:44:07.618492 > 22:42:14.618492
+
+        # Sleep until due2 in slices
+        gap = runner1.sleep_until_next_cycle(due2, slice_seconds=30.0)
+        assert gap == 0.0
+        assert clock.now() == due2
+
+        # Cycle 2 (slot 1: 22:44:07.618492)
+        rec2 = runner1.execute_cycle(2)
+        assert rec2.success is True
+        assert rec2.timestamp == "2026-11-02T22:44:07Z"
+        # Simulate Cycle 2 taking 66.0 seconds (finishing at 22:45:13.618492)
+        # This was the exact bug in SRCfix2 where diff = 179.4s yielded slot 1 again!
+        clock.advance(66.0)
+        assert clock.now() == t0 + timedelta(seconds=interval_seconds + 66.0)
+
+        # compute_next_due for Cycle 3: MUST yield slot 2 (t0 + 360s = 22:47:07.618492), NOT slot 1!
+        due3 = runner1.compute_next_due()
+        assert due3 == t0 + timedelta(seconds=2 * interval_seconds)
+        # Crucial invariant: due3 must be in the FUTURE of clock.now() (22:47:07 > 22:45:13)
+        assert due3 > clock.now()
+
+        # Sleep until due3
+        runner1.sleep_until_next_cycle(due3, slice_seconds=30.0)
+        assert clock.now() == due3
+
+        # Cycle 3 (slot 2: 22:47:07.618492)
+        rec3 = runner1.execute_cycle(3)
+        assert rec3.success is True
+        assert rec3.timestamp == "2026-11-02T22:47:07Z"
+        # Simulate Cycle 3 taking 15.0 seconds
+        clock.advance(15.0)
+
+        # compute_next_due for Cycle 4: MUST yield slot 3 (t0 + 540s = 22:50:07.618492)
+        due4 = runner1.compute_next_due()
+        assert due4 == t0 + timedelta(seconds=3 * interval_seconds)
+        assert due4 > clock.now()
+
+        # Sleep until due4
+        runner1.sleep_until_next_cycle(due4, slice_seconds=30.0)
+        assert clock.now() == due4
+
+        # Cycle 4 (slot 3: 22:50:07.618492)
+        rec4 = runner1.execute_cycle(4)
+        assert rec4.success is True
+        assert rec4.timestamp == "2026-11-02T22:50:07Z"
+
+        # Verify all 4 recorded cycle timestamps have no duplicates
+        cycles = runner1.load_cycles()
+        assert len(cycles) == 4
+        timestamps = [c.timestamp for c in cycles]
+        assert len(set(timestamps)) == 4
+        assert timestamps == [
+            "2026-11-02T22:41:07Z",
+            "2026-11-02T22:44:07Z",
+            "2026-11-02T22:47:07Z",
+            "2026-11-02T22:50:07Z",
+        ]
+
+        # -------------------------------------------------------------------
+        # Restart case: Process restarts after a 30-minute pause
+        # -------------------------------------------------------------------
+        # Fast-forward clock by 30 minutes (1800s) to 23:20:07.618492
+        clock.advance(1800.0)
+
+        # Start runner2 on the exact same directory (simulating restart)
+        runner2 = SoakRunner(
+            artifacts_dir=artifacts,
+            docs_dir=docs,
+            database_path=db,
+            clock=clock,
+            interval_minutes=interval_minutes,
+            target_hours=1.0,
+            activities=stubs,
+        )
+
+        # On restart, next due cycle is overdue -> must run immediately once
+        next_due_restart = runner2.compute_next_due()
+        assert clock.now() > next_due_restart
+        gap_restart = runner2.sleep_until_next_cycle(next_due_restart, slice_seconds=30.0)
+        assert gap_restart > 0  # Overdue, zero wait
+        # Cycle 5 runs immediately upon restart
+        rec5 = runner2.execute_cycle(5)
+        assert rec5.success is True
+        assert rec5.timestamp == "2026-11-02T23:20:07Z"
+
+        # Next due for Cycle 6 snaps strictly to the fixed grid after rec5!
+        due6 = runner2.compute_next_due()
+        assert due6 > clock.now()
+        diff_from_t0 = (due6 - runner2.start_time()).total_seconds()
+        assert diff_from_t0 % interval_seconds == 0  # Exactly aligned to grid
+
+        # Verify no duplicate slots or timestamps exist in cycles.jsonl
+        final_cycles = runner2.load_cycles()
+        assert len(final_cycles) == 5
+        final_ts = [c.timestamp for c in final_cycles]
+        assert len(set(final_ts)) == 5

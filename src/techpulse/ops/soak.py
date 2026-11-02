@@ -284,6 +284,7 @@ class SoakRunner:
 
         # Recover or initialize state
         self.recorded_start_time: datetime | None = None
+        self.last_due: datetime | None = None
         self._load_or_init_state()
 
     def _load_config_thresholds(self) -> None:
@@ -309,6 +310,7 @@ class SoakRunner:
                 pass
 
     def _load_or_init_state(self) -> None:
+        self.last_due = None
         existing = self.load_cycles()
         if existing:
             self.recorded_start_time = _parse_iso(existing[0].timestamp)
@@ -320,11 +322,26 @@ class SoakRunner:
             except (OSError, ValueError):
                 self.recorded_start_time = None
 
+        if self.state_file.is_file():
+            try:
+                state_data = json.loads(self.state_file.read_text(encoding="utf-8"))
+                if isinstance(state_data, dict) and "last_due" in state_data:
+                    self.last_due = _parse_iso(str(state_data["last_due"]))
+            except (OSError, ValueError):
+                pass
+
+    def _save_state(self) -> None:
+        state: dict[str, Any] = {
+            "start_time": _iso_now(self.start_time()),
+        }
+        if getattr(self, "last_due", None) is not None:
+            state["last_due"] = _iso_now(self.last_due)
+        self.state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
+
     def start_time(self) -> datetime:
         if self.recorded_start_time is None:
             self.recorded_start_time = self.clock.now()
-            state = {"start_time": _iso_now(self.recorded_start_time)}
-            self.state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
+            self._save_state()
         return self.recorded_start_time
 
     def elapsed_seconds(self) -> float:
@@ -356,7 +373,8 @@ class SoakRunner:
     def compute_next_due(self, after_time: datetime | None = None) -> datetime:
         """Compute the next due cycle time on a fixed grid anchored at start_time.
 
-        due = start_time + k * interval, where k is chosen such that due > after_time.
+        due = start_time + k * interval, where k is chosen such that due is strictly
+        after the slot of the last executed cycle.
         If after_time is None, uses the timestamp of the last recorded cycle (or start_time if no cycles).
         """
         start = self.start_time()
@@ -369,10 +387,21 @@ class SoakRunner:
             else:
                 return start
 
-        diff_seconds = (after_time - start).total_seconds()
-        k = math.floor(diff_seconds / interval_seconds) + 1
+        ref_time = after_time
+        if getattr(self, "last_due", None) is not None and self.last_due > ref_time:
+            ref_time = self.last_due
+
+        diff_seconds = (ref_time - start).total_seconds()
+        tolerance = 1.0 if interval_seconds > 2.0 else (interval_seconds * 0.5)
+        k = math.floor((diff_seconds + tolerance) / interval_seconds) + 1
         if k < 1:
             k = 1
+
+        if getattr(self, "last_due", None) is not None:
+            last_k = math.floor(((self.last_due - start).total_seconds() + tolerance) / interval_seconds)
+            if k <= last_k:
+                k = last_k + 1
+
         return start + timedelta(seconds=k * interval_seconds)
 
     def load_cycles(self) -> list[CycleRecord]:
@@ -395,6 +424,7 @@ class SoakRunner:
         line = json.dumps(record.to_dict(), separators=(",", ":"), sort_keys=True)
         with self.cycles_file.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
+        self._save_state()
         self.update_heartbeat(
             status="running",
             last_run_id=record.run_id,
@@ -668,6 +698,8 @@ class SoakRunner:
     def execute_cycle(self, cycle_index: int, slot: datetime | None = None) -> CycleRecord:
         """Run one P0 daily flow cycle through O20 local orchestrator."""
         when = slot if slot is not None else self.clock.now()
+        if slot is not None:
+            self.last_due = slot
         slot_text = _iso_now(when)
         run_id = f"v99-{when.strftime('%Y%m%dT%H%M%SZ')}-{cycle_index:04d}"
 
@@ -1327,6 +1359,8 @@ def main(argv: list[str] | None = None) -> int:
             flush=True,
         )
         record = runner.execute_cycle(cycle_num)
+        runner.last_due = next_due
+        runner._save_state()
         cycle_end = runner.clock.now()
         gap_from_prev = (cycle_end - last_cycle_end).total_seconds()
         last_cycle_end = cycle_end
