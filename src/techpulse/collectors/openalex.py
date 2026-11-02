@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -92,6 +92,21 @@ def collect_openalex(
         if api_key is not None
         else os.environ.get("OPENALEX_API_KEY", "").strip() or None
     )
+    effective_updated = updated
+    wm_ts = store.get_watermark(_SOURCE_ID, key)
+    if effective_updated is None and wm_ts is not None:
+        try:
+            wm_dt = parse_timestamp(wm_ts)
+            effective_updated = (wm_dt - timedelta(days=2)).strftime("%Y-%m-%d")
+        except Exception:
+            effective_updated = wm_ts.split("T")[0]
+
+    stored_cursor = store.get_cursor(_SOURCE_ID, key)
+    start_cursor = cursor
+    if start_cursor is None and wm_ts is not None:
+        if stored_cursor == "" or (effective_api_key is None and stored_cursor and stored_cursor.startswith("Il")):
+            start_cursor = "*"
+
     pace = limiter
     if pace is None:
         pace = IntervalLimiter(config.min_interval_seconds, clock=clock, sleep=sleep)
@@ -109,7 +124,8 @@ def collect_openalex(
                 "mailto": config.mailto,
                 "per-page": str(page_size),
                 "cursor": page_cursor,
-                "filter": _filter(text, updated),
+                "filter": _filter(text, effective_updated),
+                "sort": "publication_date:desc",
             }
             if effective_api_key:
                 params["api_key"] = effective_api_key
@@ -131,7 +147,7 @@ def collect_openalex(
             config=config,
             store=store,
             query_key=key,
-            explicit_cursor=cursor,
+            explicit_cursor=start_cursor,
             initial_cursor="*",
             fetch_page=fetch_page,
             id_dedup=False,
@@ -333,7 +349,8 @@ def _next_cursor(value: object) -> str:
 def _filter(keyword: str, updated_since: str | None) -> str:
     text = f"default.search:{keyword}"
     if updated_since is not None:
-        return f"{text},from_updated_date:{updated_since}"
+        date_str = updated_since.strip().split("T")[0]
+        return f"{text},from_publication_date:{date_str}"
     return text
 
 

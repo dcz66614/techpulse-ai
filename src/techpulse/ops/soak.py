@@ -18,6 +18,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import os
 import re
 import sys
@@ -351,6 +352,28 @@ class SoakRunner:
             self.clock.sleep(step)
         gap = (self.clock.now() - next_due).total_seconds()
         return gap
+
+    def compute_next_due(self, after_time: datetime | None = None) -> datetime:
+        """Compute the next due cycle time on a fixed grid anchored at start_time.
+
+        due = start_time + k * interval, where k is chosen such that due > after_time.
+        If after_time is None, uses the timestamp of the last recorded cycle (or start_time if no cycles).
+        """
+        start = self.start_time()
+        interval_seconds = max(1.0, self.interval_minutes * 60.0)
+
+        if after_time is None:
+            cycles = self.load_cycles()
+            if cycles:
+                after_time = _parse_iso(cycles[-1].timestamp)
+            else:
+                return start
+
+        diff_seconds = (after_time - start).total_seconds()
+        k = math.floor(diff_seconds / interval_seconds) + 1
+        if k < 1:
+            k = 1
+        return start + timedelta(seconds=k * interval_seconds)
 
     def load_cycles(self) -> list[CycleRecord]:
         if not self.cycles_file.is_file():
@@ -1270,28 +1293,48 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if evaluation.status == "PASS" else 1
 
     # Main continuous soak runner loop
-    print(f"Starting V99 24-hour soak runner (interval: {runner.interval_minutes}m)...")
+    print(f"Starting V99 24-hour soak runner (interval: {runner.interval_minutes}m)...", flush=True)
     last_cycle_end = runner.clock.now()
     while runner.elapsed_seconds() < runner.target_seconds:
         cycles = runner.load_cycles()
         cycle_num = len(cycles) + 1
+
+        # Determine due time on the fixed grid anchored at start_time
+        if not cycles:
+            next_due = runner.start_time()
+        else:
+            last_ts = _parse_iso(cycles[-1].timestamp)
+            next_due = runner.compute_next_due(after_time=last_ts)
+
+        # If due time is in the future, wait in wall-clock slices until next_due
+        now = runner.clock.now()
+        if now < next_due:
+            gap = runner.sleep_until_next_cycle(next_due, slice_seconds=30.0)
+            if gap > 0:
+                print(
+                    f"[{_iso_now(runner.clock.now())}] Resumed after due time (gap={gap:.1f}s). "
+                    f"Proceeding immediately to next cycle (no burst catch-up).",
+                    flush=True,
+                )
+
+        if runner.elapsed_seconds() >= runner.target_seconds:
+            break
+
+        actual_start = runner.clock.now()
+        print(
+            f"[{_iso_now(actual_start)}] Starting cycle {cycle_num}: "
+            f"due={_iso_now(next_due)} actual={_iso_now(actual_start)}",
+            flush=True,
+        )
         record = runner.execute_cycle(cycle_num)
         cycle_end = runner.clock.now()
         gap_from_prev = (cycle_end - last_cycle_end).total_seconds()
         last_cycle_end = cycle_end
         print(
             f"[{_iso_now(cycle_end)}] Cycle {cycle_num} finished: "
-            f"run_id={record.run_id} success={record.success} gap={gap_from_prev:.1f}s"
+            f"run_id={record.run_id} success={record.success} gap={gap_from_prev:.1f}s",
+            flush=True,
         )
-        if runner.elapsed_seconds() >= runner.target_seconds:
-            break
-        next_due = cycle_end + timedelta(minutes=runner.interval_minutes)
-        gap = runner.sleep_until_next_cycle(next_due, slice_seconds=30.0)
-        if gap > 0:
-            print(
-                f"[{_iso_now(runner.clock.now())}] Resumed after due time (gap={gap:.1f}s). "
-                f"Proceeding immediately to next cycle (no burst catch-up)."
-            )
 
     # 24 hours reached: evaluate and write artifacts
     evaluation = runner.evaluate(run_id=args.run_id)

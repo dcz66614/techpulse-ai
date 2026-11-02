@@ -238,6 +238,18 @@ class CursorStore:
             return None
         return value
 
+    def get_watermark(self, source_id: str, query_key: str) -> str | None:
+        row = self._conn.execute(
+            "SELECT updated_at FROM watermarks WHERE source_id = ? AND query_key = ?",
+            (source_id, query_key),
+        ).fetchone()
+        if row is None:
+            return None
+        value = row["updated_at"]
+        if not isinstance(value, str):
+            return None
+        return value
+
     def seen_count(self, source_id: str) -> int:
         row = self._conn.execute(
             "SELECT COUNT(*) AS n FROM seen_records WHERE source_id = ?",
@@ -480,10 +492,18 @@ def guarded_get(
             continue
         if is_captcha_response(fetched.status_code, fetched.headers, fetched.text):
             raise CollectorFailure(TaskStatus.POLICY_BLOCKED, "policy_blocked: captcha")
-        if fetched.status_code in {401, 403}:
+        if "plan upgrade required" in fetched.text.lower():
             raise CollectorFailure(
                 TaskStatus.POLICY_BLOCKED,
-                f"policy_blocked: {fetched.status_code}",
+                "policy_blocked: Plan upgrade required",
+            )
+        if fetched.status_code in {401, 403}:
+            msg = f"policy_blocked: {fetched.status_code}"
+            if "api key required" in fetched.text.lower():
+                msg = f"policy_blocked: {fetched.status_code} API key required for cursor paging"
+            raise CollectorFailure(
+                TaskStatus.POLICY_BLOCKED,
+                msg,
             )
         if 300 <= fetched.status_code < 400:
             raise CollectorFailure(TaskStatus.POLICY_BLOCKED, "policy_blocked: redirect")
@@ -553,6 +573,12 @@ def collect_pages(
             try:
                 page = fetch_page(cursor)
             except CollectorFailure as exc:
+                if pages == 0 and cursor != initial_cursor and "api key required" in exc.message.lower():
+                    warnings.append(
+                        f"cursor paging requires API key, restarting from initial cursor: {exc.message}"
+                    )
+                    cursor = initial_cursor
+                    continue
                 if pages > 0 and exc.status is TaskStatus.POLICY_BLOCKED and "401" in exc.message:
                     warnings.append(f"stopping pagination after page {pages}: {exc.message}")
                     break
