@@ -125,7 +125,7 @@ sources:
       user_agent: "TechPulse-AI/1.0 (mailto:info@techpulse.example.com)"
       mailto: "info@techpulse.example.com"
       extra_headers:
-        Accept: "application/vnd.crossref-api-message+json"
+        Accept: "application/json"
     auth_needs: "None for public REST API polite pool; mailto identification required"
     attribution: "Documentation is CC BY 4.0; member bibliographic metadata is shared openly across the global community"
     caching_and_retention: "Permitted and explicitly recommended ('You might have a request that you want to make repeatedly and keep local results cached. You may even want to have a complete copy of the Crossref database and keep it up-to-date')"

@@ -357,7 +357,7 @@ def test_registry_headers_mailto_and_row_cap(monkeypatch: pytest.MonkeyPatch) ->
             assert result.metrics["third_party_writes"] == 0
     request = seen[0]
     assert request.headers["User-Agent"] == config.user_agent
-    assert request.headers["Accept"] == "application/vnd.crossref-api-message+json"
+    assert request.headers["Accept"] == "application/json"
     assert request.url.params["mailto"] == config.mailto
     assert request.url.params["rows"] == "1000"
     assert request.url.params["filter"] == "doi:10.5555/abc.1,from-update-date:2024-01-01"

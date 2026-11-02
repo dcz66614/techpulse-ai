@@ -71,6 +71,7 @@ def collect_crossref(
     limiter: IntervalLimiter | None = None,
     artifacts_dir: Path | None = None,
     run_id: str | None = None,
+    max_pages: int | None = None,
 ) -> CollectResult:
     """Cursor-page Crossref works. The same DOI on two pages is stored once."""
     if query is None and doi is None:
@@ -153,6 +154,7 @@ def collect_crossref(
             artifacts_dir=artifacts_dir,
             run_id=run_id,
             ticket="C11",
+            max_pages=max_pages,
         )
     finally:
         client.close()

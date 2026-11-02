@@ -484,6 +484,7 @@ class LocalOrchestrator:
         activities: Mapping[str, Activity] | None = None,
         timeout_seconds: float | None = None,
         jitter: Callable[[int, str], float] | None = None,
+        probe_cooldown_seconds: float | None = None,
     ) -> None:
         if timeout_seconds is not None and timeout_seconds <= 0:
             raise ValueError("timeout_seconds must be positive")
@@ -492,6 +493,7 @@ class LocalOrchestrator:
         self._activities = dict(activities or {})
         self._timeout = timeout_seconds
         self._jitter = jitter if jitter is not None else _zero_jitter
+        self._probe_cooldown_seconds = probe_cooldown_seconds
         self._workflows = {
             daily_workflow().workflow_id: daily_workflow(),
             weekly_workflow().workflow_id: weekly_workflow(),
@@ -940,8 +942,9 @@ class LocalOrchestrator:
             self._adopt(run_id, step, TaskStatus.READY, digest, key, cached)
             return
         if step.collector and step.source_id and not self.source_enabled(step.source_id):
-            self._block_disabled(run_id, step, digest, key)
-            return
+            if not self._should_reprobe(step.source_id):
+                self._block_disabled(run_id, step, digest, key)
+                return
         if not self._budget_allows(step):
             return
         self.transition(
@@ -1092,6 +1095,9 @@ class LocalOrchestrator:
             "status": result.status.value,
         }
         if result.status is TaskStatus.SUCCESS:
+            source_id = result.source_id or step.source_id
+            if source_id and not self.source_enabled(source_id):
+                self.re_enable_source(source_id)
             self._store_success(run_id, step, attempt, digest, key, result.records, body)
             return
         if result.status is TaskStatus.FATAL_ERROR:
@@ -1467,6 +1473,49 @@ class LocalOrchestrator:
                 """,
                 (source_id, when),
             )
+
+    def re_enable_source(self, source_id: str) -> None:
+        when = _iso(self._clock.now())
+        self._conn.execute(
+            """
+            UPDATE source_registry SET enabled = 1, checked_at = ? WHERE source_id = ?
+            """,
+            (when, source_id),
+        )
+
+    def probe_source(self, source_id: str, probe_fn: Callable[[], bool] | None = None) -> bool:
+        """Re-probe a disabled source. Re-enables on success, stays disabled on failure."""
+        if probe_fn is not None:
+            try:
+                success = bool(probe_fn())
+            except Exception:
+                success = False
+            if success:
+                self.re_enable_source(source_id)
+                return True
+            self._disable_source(source_id)
+            return False
+        self.re_enable_source(source_id)
+        return True
+
+    def _should_reprobe(self, source_id: str) -> bool:
+        if self._probe_cooldown_seconds is None:
+            return False
+        row = self._conn.execute(
+            "SELECT checked_at FROM source_registry WHERE source_id = ?",
+            (source_id,),
+        ).fetchone()
+        if row is None or not row["checked_at"]:
+            return True
+        try:
+            disabled_str = str(row["checked_at"]).strip()
+            if disabled_str.endswith("Z"):
+                disabled_str = disabled_str[:-1] + "+00:00"
+            disabled_time = datetime.fromisoformat(disabled_str).astimezone(UTC)
+            elapsed = (self._clock.now() - disabled_time).total_seconds()
+            return elapsed >= self._probe_cooldown_seconds
+        except Exception:
+            return True
 
     def _insert_publication(self, workflow: Workflow, run_id: str, report_id: str) -> int:
         found = self._conn.execute(

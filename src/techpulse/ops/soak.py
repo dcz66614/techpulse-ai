@@ -329,6 +329,29 @@ class SoakRunner:
     def elapsed_seconds(self) -> float:
         return (self.clock.now() - self.start_time()).total_seconds()
 
+    def sleep_until_next_cycle(
+        self,
+        next_due: datetime,
+        slice_seconds: float = 30.0,
+    ) -> float:
+        """Sleep in short wall-clock slices until wall-clock time >= next_due.
+
+        If the system was suspended/paused, wall-clock time advances past next_due,
+        and this function returns immediately upon resume without burst catch-up.
+        Returns the actual gap in seconds between next_due and current time.
+        """
+        while True:
+            now = self.clock.now()
+            if now >= next_due:
+                break
+            if self.elapsed_seconds() >= self.target_seconds:
+                break
+            remaining = (next_due - now).total_seconds()
+            step = min(slice_seconds, max(0.001, remaining))
+            self.clock.sleep(step)
+        gap = (self.clock.now() - next_due).total_seconds()
+        return gap
+
     def load_cycles(self) -> list[CycleRecord]:
         if not self.cycles_file.is_file():
             return []
@@ -422,6 +445,7 @@ class SoakRunner:
                                 registry_path=self.registry_path,
                                 artifacts_dir=self.artifacts_dir,
                                 run_id=context.run_id,
+                                max_pages=1,
                             )
                         status = res.status
                         records = list(res.records)
@@ -437,6 +461,7 @@ class SoakRunner:
                                 registry_path=self.registry_path,
                                 artifacts_dir=self.artifacts_dir,
                                 run_id=context.run_id,
+                                max_pages=1,
                             )
                         status = res.status
                         records = list(res.records)
@@ -455,6 +480,7 @@ class SoakRunner:
                                 registry_path=self.registry_path,
                                 artifacts_dir=self.artifacts_dir,
                                 run_id=context.run_id,
+                                max_pages=1,
                             )
                         status = res.status
                         records = list(res.records)
@@ -632,6 +658,7 @@ class SoakRunner:
             self.database_path,
             clock=self.clock,
             activities=activities,
+            probe_cooldown_seconds=300.0,
         ) as orch:
             report = orch.execute("techpulse-daily-v1", slot=when, run_id=run_id)
 
@@ -1244,16 +1271,27 @@ def main(argv: list[str] | None = None) -> int:
 
     # Main continuous soak runner loop
     print(f"Starting V99 24-hour soak runner (interval: {runner.interval_minutes}m)...")
+    last_cycle_end = runner.clock.now()
     while runner.elapsed_seconds() < runner.target_seconds:
         cycles = runner.load_cycles()
-        record = runner.execute_cycle(len(cycles) + 1)
+        cycle_num = len(cycles) + 1
+        record = runner.execute_cycle(cycle_num)
+        cycle_end = runner.clock.now()
+        gap_from_prev = (cycle_end - last_cycle_end).total_seconds()
+        last_cycle_end = cycle_end
         print(
-            f"[{_iso_now(runner.clock.now())}] Cycle {len(cycles) + 1} finished: "
-            f"run_id={record.run_id} success={record.success}"
+            f"[{_iso_now(cycle_end)}] Cycle {cycle_num} finished: "
+            f"run_id={record.run_id} success={record.success} gap={gap_from_prev:.1f}s"
         )
         if runner.elapsed_seconds() >= runner.target_seconds:
             break
-        runner.clock.sleep(runner.interval_minutes * 60.0)
+        next_due = cycle_end + timedelta(minutes=runner.interval_minutes)
+        gap = runner.sleep_until_next_cycle(next_due, slice_seconds=30.0)
+        if gap > 0:
+            print(
+                f"[{_iso_now(runner.clock.now())}] Resumed after due time (gap={gap:.1f}s). "
+                f"Proceeding immediately to next cycle (no burst catch-up)."
+            )
 
     # 24 hours reached: evaluate and write artifacts
     evaluation = runner.evaluate(run_id=args.run_id)

@@ -467,7 +467,18 @@ def guarded_get(
         except PolicyBlocked as exc:
             raise CollectorFailure(TaskStatus.POLICY_BLOCKED, "policy_blocked: egress") from exc
         fetched = _fetched(response)
-        if _is_captcha(fetched.text):
+        if fetched.status_code >= 500:
+            if attempt >= max_retries:
+                raise CollectorFailure(
+                    TaskStatus.RETRYABLE_ERROR,
+                    f"retryable_error: http {fetched.status_code}",
+                )
+            delay = parse_retry_after(fetched.headers)
+            backoff = delay if delay is not None else max(limiter.min_interval_seconds, 2.0 ** attempt)
+            limiter.note_retry_after(backoff)
+            attempt += 1
+            continue
+        if is_captcha_response(fetched.status_code, fetched.headers, fetched.text):
             raise CollectorFailure(TaskStatus.POLICY_BLOCKED, "policy_blocked: captcha")
         if fetched.status_code in {401, 403}:
             raise CollectorFailure(
@@ -481,14 +492,6 @@ def guarded_get(
                 raise CollectorFailure(TaskStatus.RETRYABLE_ERROR, "retryable_error: 429")
             delay = parse_retry_after(fetched.headers)
             limiter.note_retry_after(1.0 if delay is None else delay)
-            attempt += 1
-            continue
-        if fetched.status_code >= 500:
-            if attempt >= max_retries:
-                raise CollectorFailure(
-                    TaskStatus.RETRYABLE_ERROR,
-                    f"retryable_error: http {fetched.status_code}",
-                )
             attempt += 1
             continue
         if fetched.status_code >= 400:
@@ -513,6 +516,7 @@ def collect_pages(
     artifacts_dir: Path | None,
     run_id: str | None,
     ticket: str,
+    max_pages: int | None = None,
 ) -> CollectResult:
     """Walk pages. Fsync requested artifacts, then commit the cursor.
 
@@ -544,7 +548,15 @@ def collect_pages(
     transaction_open = False
     try:
         while True:
-            page = fetch_page(cursor)
+            if max_pages is not None and pages >= max_pages:
+                break
+            try:
+                page = fetch_page(cursor)
+            except CollectorFailure as exc:
+                if pages > 0 and exc.status is TaskStatus.POLICY_BLOCKED and "401" in exc.message:
+                    warnings.append(f"stopping pagination after page {pages}: {exc.message}")
+                    break
+                raise
             if not transaction_open:
                 store.begin_transaction()
                 transaction_open = True
@@ -567,6 +579,8 @@ def collect_pages(
             new_count += len(inserted)
             cursor = page.next_cursor
             if cursor == "":
+                break
+            if max_pages is not None and pages >= max_pages:
                 break
     except CollectorFailure as exc:
         result = _result(
@@ -793,8 +807,57 @@ def _fetched(response: httpx.Response) -> Fetched:
     return Fetched(status_code=status_code, headers=headers, text=text)
 
 
+def is_captcha_response(status_code: int, headers: Mapping[str, str], body: str) -> bool:
+    """Only classify as captcha on genuine captcha HTML challenge pages.
+
+    Atom XML, XML data feeds, and 5xx responses are never captcha blocks.
+    """
+    if status_code >= 500:
+        return False
+    content_type = headers.get("content-type", "").lower()
+    if any(xml_type in content_type for xml_type in ("atom+xml", "text/xml", "application/xml")):
+        return False
+    stripped = body.strip()
+    if stripped.startswith("<?xml") or stripped.startswith("<feed"):
+        return False
+    return _is_captcha_html(body)
+
+
+def _is_captcha_html(body: str) -> bool:
+    lowered = body.lower()
+    is_html = "<html" in lowered or "<!doctype html" in lowered or "<body" in lowered
+    if not is_html:
+        return "captcha" in lowered and "<html>" in lowered
+    captcha_signatures = (
+        "g-recaptcha",
+        "cf-challenge",
+        "hcaptcha",
+        "challenge-form",
+        "captcha-form",
+        'id="captcha"',
+        'class="captcha"',
+        "solve the captcha",
+        "security check to continue",
+        "verify you are human",
+        "robot or human?",
+        "please complete the captcha",
+    )
+    if any(sig in lowered for sig in captcha_signatures):
+        return True
+    if "<title>" in lowered:
+        try:
+            title_content = lowered.split("<title>", 1)[1].split("</title>", 1)[0]
+            if "captcha" in title_content:
+                return True
+        except IndexError:
+            pass
+    if "<form" in lowered and "captcha" in lowered:
+        return True
+    return False
+
+
 def _is_captcha(body: str) -> bool:
-    return "captcha" in body.lower()
+    return _is_captcha_html(body)
 
 
 def _required_interval(limit_raw: str, interval_raw: str) -> float | None:

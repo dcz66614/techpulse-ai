@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -54,6 +55,8 @@ def collect_openalex(
     limiter: IntervalLimiter | None = None,
     artifacts_dir: Path | None = None,
     run_id: str | None = None,
+    api_key: str | None = None,
+    max_pages: int | None = None,
 ) -> CollectResult:
     """Collect works for one keyword. Cursor paging stops on the last page.
 
@@ -84,6 +87,11 @@ def collect_openalex(
     if not config.enabled:
         return disabled_result(config, store, key)
     registry = config_path(path)
+    effective_api_key = (
+        api_key
+        if api_key is not None
+        else os.environ.get("OPENALEX_API_KEY", "").strip() or None
+    )
     pace = limiter
     if pace is None:
         pace = IntervalLimiter(config.min_interval_seconds, clock=clock, sleep=sleep)
@@ -103,6 +111,8 @@ def collect_openalex(
                 "cursor": page_cursor,
                 "filter": _filter(text, updated),
             }
+            if effective_api_key:
+                params["api_key"] = effective_api_key
             fetched = guarded_get(
                 client,
                 pace,
@@ -129,6 +139,7 @@ def collect_openalex(
             artifacts_dir=artifacts_dir,
             run_id=run_id,
             ticket="C10",
+            max_pages=max_pages,
         )
     finally:
         client.close()

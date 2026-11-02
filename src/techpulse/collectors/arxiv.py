@@ -90,6 +90,7 @@ def collect_arxiv(
     limiter: IntervalLimiter | None = None,
     artifacts_dir: Path | None = None,
     run_id: str | None = None,
+    max_pages: int | None = None,
 ) -> CollectResult:
     """Page the export API for one query and time window. The end instant is excluded."""
     text = search_query.strip()
@@ -181,6 +182,7 @@ def collect_arxiv(
             artifacts_dir=artifacts_dir,
             run_id=run_id,
             ticket="C12",
+            max_pages=max_pages,
         )
     finally:
         client.close()
