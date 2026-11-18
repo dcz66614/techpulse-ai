@@ -279,8 +279,8 @@ class SoakRunner:
             for src in AUTH04_SOURCES
         }
 
-        # In-memory buffer for real raw records per active cycle
-        self._run_records: dict[str, list[RawRecord]] = {}
+        # In-memory buffer per active cycle: run_id -> task_id -> raw records.
+        self._run_records: dict[str, dict[str, list[RawRecord]]] = {}
 
         # Recover or initialize state
         self.recorded_start_time: datetime | None = None
@@ -384,6 +384,8 @@ class SoakRunner:
             cycles = self.load_cycles()
             if cycles:
                 after_time = _parse_iso(cycles[-1].timestamp)
+            elif self.last_due is not None:
+                after_time = self.last_due
             else:
                 return start
 
@@ -565,8 +567,11 @@ class SoakRunner:
                     status = TaskStatus.RETRYABLE_ERROR
                     errors.append(f"{source} collection error: {type(exc).__name__}: {exc}")
 
-                if records:
-                    self._run_records.setdefault(context.run_id, []).extend(records)
+                if status is TaskStatus.SUCCESS and records:
+                    by_task = self._run_records.setdefault(context.run_id, {})
+                    by_task[context.task_id] = list(records)
+                elif status is not TaskStatus.SUCCESS and context.run_id in self._run_records:
+                    self._run_records[context.run_id].pop(context.task_id, None)
 
                 rec_ids = tuple(r.source_record_id for r in records)
                 out_sha = hashlib.sha256("".join(rec_ids).encode("utf-8")).hexdigest()
@@ -587,7 +592,21 @@ class SoakRunner:
 
         # Real D10 Activity
         def d10_activity(context: ActivityContext) -> ActivityResult:
-            collected = self._run_records.get(context.run_id, [])
+            run_records_by_task = self._run_records.get(context.run_id, {})
+            collected: list[RawRecord] = []
+            for tid in TASK_TO_SOURCE:
+                collected.extend(run_records_by_task.get(tid, []))
+
+            # Deduplicate by (source_id, source_record_id) to ensure idempotency
+            seen_source_keys: set[tuple[str, str]] = set()
+            deduped_collected: list[RawRecord] = []
+            for r in collected:
+                k = (r.source_id.value, r.source_record_id)
+                if k not in seen_source_keys:
+                    seen_source_keys.add(k)
+                    deduped_collected.append(r)
+            collected = deduped_collected
+
             ndjson_lines = [r.model_dump_json() for r in collected]
             ndjson_bytes = "".join(f"{line}\n" for line in ndjson_lines).encode("utf-8")
             store = LocalObjectStore(self.artifacts_dir)
@@ -599,10 +618,15 @@ class SoakRunner:
                 artifacts_dir=self.artifacts_dir,
                 proposed_cursors={r.source_id.value: r.source_record_id for r in collected},
             )
-            rec_ids = tuple(r.source_record_id for r in collected)
+            seen_ids: set[str] = set()
+            rec_ids: list[str] = []
+            for r in collected:
+                if r.source_record_id not in seen_ids:
+                    seen_ids.add(r.source_record_id)
+                    rec_ids.append(r.source_record_id)
             return ActivityResult(
                 status=archived.status,
-                records=rec_ids,
+                records=tuple(rec_ids),
                 errors=archived.errors,
                 cost_usd=0.0,
                 output_sha256=archived.object_sha256,
