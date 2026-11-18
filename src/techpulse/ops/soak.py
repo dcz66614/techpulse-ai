@@ -279,8 +279,10 @@ class SoakRunner:
             for src in AUTH04_SOURCES
         }
 
-        # In-memory buffer per active cycle: run_id -> task_id -> raw records.
-        self._run_records: dict[str, dict[str, list[RawRecord]]] = {}
+        # In-memory buffer per active cycle: run_id -> task_id -> (attempt, raw records).
+        # The attempt number guards against a late-finishing zombie result of a
+        # timed-out attempt overwriting a newer attempt's entry for the task.
+        self._run_records: dict[str, dict[str, tuple[int, list[RawRecord]]]] = {}
 
         # Recover or initialize state
         self.recorded_start_time: datetime | None = None
@@ -567,11 +569,18 @@ class SoakRunner:
                     status = TaskStatus.RETRYABLE_ERROR
                     errors.append(f"{source} collection error: {type(exc).__name__}: {exc}")
 
-                if status is TaskStatus.SUCCESS and records:
-                    by_task = self._run_records.setdefault(context.run_id, {})
-                    by_task[context.task_id] = list(records)
-                elif status is not TaskStatus.SUCCESS and context.run_id in self._run_records:
-                    self._run_records[context.run_id].pop(context.task_id, None)
+                by_task = self._run_records.setdefault(context.run_id, {})
+                current = by_task.get(context.task_id)
+                current_attempt = current[0] if current is not None else -1
+                if context.attempt >= current_attempt:
+                    if status is TaskStatus.SUCCESS:
+                        # Always replace, even with an empty list, so a
+                        # successful retry fully clears a timed-out attempt's
+                        # stale records. The attempt check ignores a late
+                        # zombie result from a superseded attempt.
+                        by_task[context.task_id] = (context.attempt, list(records))
+                    else:
+                        by_task.pop(context.task_id, None)
 
                 rec_ids = tuple(r.source_record_id for r in records)
                 out_sha = hashlib.sha256("".join(rec_ids).encode("utf-8")).hexdigest()
@@ -595,7 +604,9 @@ class SoakRunner:
             run_records_by_task = self._run_records.get(context.run_id, {})
             collected: list[RawRecord] = []
             for tid in TASK_TO_SOURCE:
-                collected.extend(run_records_by_task.get(tid, []))
+                entry = run_records_by_task.get(tid)
+                if entry is not None:
+                    collected.extend(entry[1])
 
             # Deduplicate by (source_id, source_record_id) to ensure idempotency
             seen_source_keys: set[tuple[str, str]] = set()

@@ -222,6 +222,119 @@ def test_cycle_interrupted_midway_resumes_writes_zero_duplicates(
 
 
 # ---------------------------------------------------------------------------
+# (a2) Successful empty retry must clear a timed-out attempt's stale records
+# ---------------------------------------------------------------------------
+
+
+def test_successful_empty_retry_clears_stale_records_from_timed_out_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A SUCCESS retry with zero records replaces the earlier attempt's buffer.
+
+    Mirror of the Copilot DUPfix4 finding on c65f6d9: attempt 1 of github
+    collects record "1362490" and is staged in the buffer while SUCCESS, but
+    the host clock jump makes the orchestrator time it out and discard its
+    result; attempt 2 is retried and succeeds with an EMPTY records list. The
+    old ``if status is SUCCESS and records:`` guard skips the empty success, so
+    attempt 1's stale record survives into D10's archive input. The fix always
+    assigns on SUCCESS (even empty), so the archived NDJSON has none of the
+    stale record and zero duplicates.
+    """
+    t0 = datetime(2026, 11, 3, 0, 53, 23, tzinfo=UTC)
+    clock = SuspendSimulatingClock(t0)
+
+    github_attempts: list[int] = []
+
+    class FakeGitHubCollector:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def __enter__(self) -> FakeGitHubCollector:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def collect(self, _repos: list[str], cursor: str | None = None) -> GitHubCollection:
+            attempt = len(github_attempts) + 1
+            github_attempts.append(attempt)
+            if attempt == 1:
+                rec = _github_record(clock, 54593)
+                clock.advance(6.5 * 3600)  # host suspends past the 1h deadline
+                return GitHubCollection((rec,), "cursor-1")
+            # The retry succeeds but the cursor already advanced, so no new
+            # records: an empty SUCCESS that must clear the stale buffer.
+            return GitHubCollection((), "cursor-2")
+
+    def empty_collect(**_kwargs: object) -> CollectResult:
+        return CollectResult(status=TaskStatus.SUCCESS, records=[], new_count=0, cursor=None)
+
+    class FakeHNCollector:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def __enter__(self) -> FakeHNCollector:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def collect(self, _ids: list[int], cursor: str | None = None) -> HNCollection:
+            return HNCollection((), "cursor-hn")
+
+    monkeypatch.setattr("techpulse.collectors.github.GitHubCollector", FakeGitHubCollector)
+    monkeypatch.setattr("techpulse.collectors.hn.HNCollector", FakeHNCollector)
+    monkeypatch.setattr("techpulse.collectors.openalex.collect_openalex", empty_collect)
+    monkeypatch.setattr("techpulse.collectors.crossref.collect_crossref", empty_collect)
+    monkeypatch.setattr("techpulse.collectors.arxiv.collect_arxiv", empty_collect)
+
+    with TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        artifacts = base / "artifacts"
+        docs = base / "docs"
+        db = base / "soak.sqlite"
+        _enable_github_in_config(base, monkeypatch)
+
+        runner = SoakRunner(
+            artifacts_dir=artifacts,
+            docs_dir=docs,
+            database_path=db,
+            clock=clock,
+            interval_minutes=60.0,
+            target_hours=24.0,
+        )
+
+        rec = runner.execute_cycle(1)
+
+        assert github_attempts == [1, 2]
+        assert rec.success is True
+        assert rec.errors == []
+        assert all(rec.per_source_success.values())
+        assert rec.duplicates_written == 0
+
+        run_id = rec.run_id
+        raw_path = artifacts / run_id / "D10" / "staging" / "raw.ndjson"
+        assert raw_path.is_file()
+        raw_text = raw_path.read_text(encoding="utf-8")
+        assert "1362490" not in raw_text
+        assert raw_text.strip() == ""
+
+        con = sqlite3.connect(db)
+        con.row_factory = sqlite3.Row
+        gh_records = con.execute(
+            "SELECT * FROM raw_records WHERE source_id='github' AND source_record_id='1362490'"
+        ).fetchall()
+        assert len(gh_records) == 0
+
+        dupe_check = con.execute(
+            "SELECT task_id, input_sha256, record_key, COUNT(*) AS cnt "
+            "FROM o20_records GROUP BY task_id, input_sha256, record_key HAVING cnt > 1"
+        ).fetchall()
+        assert len(dupe_check) == 0
+        con.close()
+
+
+# ---------------------------------------------------------------------------
 # (b) Saved last_due path in soak_state.json
 # ---------------------------------------------------------------------------
 
