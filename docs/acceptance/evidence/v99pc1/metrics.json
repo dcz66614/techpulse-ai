@@ -1,0 +1,23 @@
+{
+  "cadence_hourly_met": true,
+  "cycle_count": 24,
+  "duplicates_written": 0,
+  "elapsed_hours": 24.0036,
+  "elapsed_seconds": 86413.01,
+  "failed_cycles": 1,
+  "max_cycle_gap_seconds": 3601.0,
+  "p0_success_rate": 0.9583,
+  "reports_published": 24,
+  "run_id": "v99pc1",
+  "sources_verified": [
+    "openalex",
+    "crossref",
+    "arxiv",
+    "github",
+    "hn"
+  ],
+  "status": "FAIL",
+  "successful_cycles": 23,
+  "ticket": "V99",
+  "total_cost_usd": 0.0
+}

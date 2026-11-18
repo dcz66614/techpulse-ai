@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Starts the TechPulse-AI read-only API locally on a dedicated Linux box.
-# Authorized by AUTH-02 / AUTH-06 (Ticket DEC / DECbox) for local single-machine deployment.
+# Starts the TechPulse-AI read-only API locally on the owner's Windows PC.
+# Authorized by AUTH-02 / AUTH-06 for local single-machine deployment (corrected 2026-11-18).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

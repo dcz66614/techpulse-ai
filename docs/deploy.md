@@ -1,12 +1,12 @@
-# Deployment Guide: Dedicated Linux Machine Deployment (AUTH-02 / AUTH-06)
+# Deployment Guide: Owner's Windows PC Deployment (AUTH-02 / AUTH-06)
 
-This document describes the deployment architecture and execution steps for TechPulse-AI. Under decision **AUTH-02** (`docs/decisions/auth02_deploy_target.md`, updated under Ticket DECbox) and **AUTH-06** (`docs/decisions/auth06_local_release.md`), the authorized deployment target is a **separate always-on Linux machine (x86_64, Python via uv, no Docker, no Postgres)**, NOT the owner's Windows PC (which shuts down nightly).
+This document describes the deployment architecture and execution steps for TechPulse-AI. Under decision **AUTH-02** (`docs/decisions/auth02_deploy_target.md`, updated 2026-11-18) and **AUTH-06** (`docs/decisions/auth06_local_release.md`), the authorized deployment target is the **owner's Windows PC** (Python via uv/venv, SQLite, no Docker, no Postgres). This is the environment actually validated by the smoke test and the 24-hour V99 soak run (v99pc1). The separate Linux target was never validated and was dropped by owner decision 2026-11-18.
 
 ---
 
 ## 1. Deployment Architecture & Boundaries
 
-- **Deploy Target:** Single-machine self-hosted deployment on a dedicated always-on Linux box (`x86_64`, `127.0.0.1`).
+- **Deploy Target:** Single-machine self-hosted deployment on the owner's Windows PC (`127.0.0.1`), always-on for the validated run.
 - **Database Backend:** SQLite (managed via Alembic migrations at `migrations/`). No external PostgreSQL server is required or connected.
 - **Application Server:** FastAPI application served via `uvicorn` (`techpulse.api.main:app`) bound strictly to `127.0.0.1`.
 - **Workflow Pipeline:** Local task orchestrator (`O20` / `techpulse.workflows.orchestrator.LocalOrchestrator`) executing linear stages with SQLite checkpoints. No external Temporal server is required.
@@ -18,7 +18,7 @@ This document describes the deployment architecture and execution steps for Tech
 
 ## 2. Prerequisites
 
-1. **Host:** Linux machine (`x86_64`) with always-on availability.
+1. **Host:** Owner's Windows PC, kept awake and logged in for the duration of the run.
 2. **Python:** Python 3.12 or higher.
 3. **Package Manager:** `uv` installed and available in PATH.
 4. **Environment:** Set `UV_PROJECT_ENVIRONMENT=.venv` (or activate `.venv`).
@@ -99,7 +99,7 @@ uv run python scripts/v99_soak.py --status
 
 ## 4. Release Gate & Security Governance
 
-- **AUTH-02 (Deploy Target):** Granted for local single-machine deployment on a separate always-on Linux box (`config/deploy.yaml`). The owner's Windows PC was superseded because it shuts down nightly. Cloud and container deployments remain strictly prohibited.
+- **AUTH-02 (Deploy Target):** Granted for local single-machine deployment on the owner's Windows PC (`config/deploy.yaml`), the environment validated by the smoke test and the 24h V99 soak run. The separate Linux target was never validated and was dropped 2026-11-18. Cloud and container deployments remain strictly prohibited.
 - **AUTH-06 (Local Release Approval):** Approved for local/self-hosted "v1.0 local release" only. Public internet exposure and outreach stay REFUSED.
 - **Container Images and `<PINNED_DIGEST>`:** Docker builds and container registry pushes are not used; `<PINNED_DIGEST>` in the Dockerfile remains an unpinned placeholder because no container is built. The image digest stays `"N/A (local deployment, no container)"`.
-- **V99 Soak Testing:** Evaluated after a continuous 24-hour run on the dedicated always-on Linux box. Before 24h elapsed wall-clock time, PASS is strictly forbidden.
+- **V99 Soak Testing:** Evaluated after a continuous 24-hour run on the owner's Windows PC (run v99pc1). Before 24h elapsed wall-clock time, PASS is strictly forbidden.

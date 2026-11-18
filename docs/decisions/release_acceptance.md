@@ -11,7 +11,7 @@
 
 ## 1. Executive Summary
 
-All Section 10 quantitative thresholds, P0 implementation tasks, security controls, and delegated decisions (AUTH-02, AUTH-06, G20, M70, C30-31) have been verified. Production release is APPROVED for **local v1.0 release only** (single-machine self-hosted deployment on separate always-on Linux box using SQLite and local runner; owner's PC was superseded under Ticket DECbox due to nightly shutdowns). Public deployment, cloud hosting, and external outreach remain strictly REFUSED. V99 soak testing remains GATED pending a 24-hour staging run.
+All Section 10 quantitative thresholds, P0 implementation tasks, security controls, and delegated decisions (AUTH-02, AUTH-06, G20, M70, C30-31) have been verified. Production release is APPROVED for **local v1.0 release only** (single-machine self-hosted deployment on the owner's Windows PC using SQLite and a local runner, the environment validated by the smoke test and the 24h V99 soak run; the separate Linux target was dropped by owner decision 2026-11-18). Public deployment, cloud hosting, and external outreach remain strictly REFUSED. V99 soak testing remains GATED pending a 24-hour staging run.
 
 ## 2. Section 10 Quantitative Thresholds Matrix
 
@@ -105,7 +105,7 @@ No active blockers for staging release.
 
 | Code | Gated Item | Reason | Action Required |
 |---|---|---|---|
-| `AUTH-02` | AUTH-02 local target granted | Deploy target granted for local single-machine deployment on separate always-on Linux box (x86_64, Python via uv, SQLite, local uvicorn+O20 runner; no Docker, no Postgres, no cloud spend; owner's PC superseded due to nightly shutdowns). | Dedicated Linux machine deployment authorized; cloud deploy refused. |
+| `AUTH-02` | AUTH-02 local target granted | Deploy target granted for local single-machine deployment on the owner's Windows PC (Python via uv/venv, SQLite, local uvicorn+O20 runner; no Docker, no Postgres, no cloud spend), the environment validated by smoke + 24h V99 soak. The separate Linux target was never validated and was dropped 2026-11-18. | Owner's Windows PC deployment authorized; cloud deploy refused. |
 | `AUTH-06` | AUTH-06 local release only | Approved for local/self-hosted v1.0 release only. No public outreach, no paid services. Public stays refused. | Local v1.0 release authorized; public outreach strictly refused. |
 | `V99` | V99 24h soak not run | 24-hour unattended soak testing has not been run; requires V90 gate approval first. | Trigger continuous 24h P0 run in staging environment after V90 sign-off. |
 | `M70` | M70 optional skipped_not_applicable | PEFT/LoRA fine-tuning experiment skipped; baseline hybrid retrieval meets Section 10 thresholds. | No action required for MVP; baseline models are sufficient. |
@@ -122,3 +122,12 @@ No active blockers for staging release.
 ## Known-Limits Note
 
 - Held-out Retrieval Recall@20 (0.8182 on `data/gold/retrieval/queries_ext.jsonl`): see [heldout_recall_known_limit.md](heldout_recall_known_limit.md).
+
+## Post-Review Status Addendum (2026-11-18)
+
+The V90 gate result above predates the V99 soak and the GPT final review. The following known issues are recorded as of 2026-11-18 and this decision must be read together with them:
+
+- **V99 24h soak = FAIL.** Run `v99pc1` (Windows PC, started 2026-11-17 10:25:51 GMT): 23/24 cycles succeeded, success rate 95.83%, below the 99% threshold. The only failed cycle was #21 (2026-11-18 06:25 GMT): one transient arxiv `retryable_error`; the other four sources succeeded. Max gap 1h, 0 duplicates. The verdict stays **FAIL**. Cd (owner) accepted the risk and explicitly **waived a re-run on 2026-11-18**. See [mvp_acceptance.md](mvp_acceptance.md).
+- **Held-out Recall@20 = 0.8182 < 0.85**, re-measured on latest code `f41d756` (sealed once). Status: owner-waived. Ticket RETfix found no sound improvement; no src change was made. See [heldout_recall_known_limit.md](heldout_recall_known_limit.md).
+- **AUTH-02 deploy target corrected to the owner's Windows PC**, the environment validated by smoke + V99. The separate Linux target was never validated and was dropped 2026-11-18. See [auth02_deploy_target.md](auth02_deploy_target.md).
+- This is NOT a final-acceptance-passed release. It is a development build with documented known issues; the GPT final review verdict is NO-GO (see `docs/acceptance/GPT_FINAL_REVIEW_VERDICT.md`).
