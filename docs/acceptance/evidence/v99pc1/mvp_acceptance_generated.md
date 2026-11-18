@@ -1,5 +1,11 @@
 # Decision: MVP Acceptance and V99 24-Hour Soak Test Sign-Off
 
+> **SUPERSEDED / NOTE (2026-11-18):** This is an archived, raw generated artifact kept
+> verbatim for provenance; its body is unmodified. The AUTH-02 deploy target was
+> **corrected to the owner's Windows PC on 2026-11-18** (the environment validated by the
+> smoke test and the 24h V99 soak run). References below to a "dedicated Linux box/machine"
+> are historical and superseded. See `docs/decisions/auth02_deploy_target.md`.
+
 - **Status:** **REFUSED (FAIL)**
 - **Run ID:** `v99pc1`
 - **Evaluation Timestamp:** `2026-11-18T10:26:04Z`

@@ -5,14 +5,14 @@
 # This is the environment validated by the smoke test and the 24h V99 soak run:
 # scheduled tasks, local uvicorn (127.0.0.1) + soak runner, SQLite, Python via uv/venv,
 # no Docker, no Postgres. The separate Linux target was never validated and was
-# dropped by owner decision 2026-11-18. (The host_platform value below is a legacy
-# config key left unchanged; it does not describe the deployed host.)
+# dropped by owner decision 2026-11-18. The host_platform value below describes the
+# deployed host: the owner's Windows PC.
 # Target: local only. SQLite database, local runner (uvicorn + O20 local orchestrator).
 # No Docker, no Postgres, no cloud spend. Cloud / public deployment remains refused.
 auth02:
   granted: true
   target: local
-  host_platform: linux_x86_64
+  host_platform: windows_x86_64
   python_runner: uv
   allowed_targets:
     - local

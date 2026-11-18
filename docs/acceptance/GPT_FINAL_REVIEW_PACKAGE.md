@@ -1,5 +1,12 @@
 # GPT Final-Review Package: TechPulse-AI (P0004)
 
+> **SUPERSEDED / NOTE (2026-11-18):** This package was assembled for the GPT final
+> review and is retained for history. Its V99 section is superseded by the final result
+> (FAIL, 23/24; risk accepted and re-run waived 2026-11-18) and by the NO-GO verdict in
+> `GPT_FINAL_REVIEW_VERDICT.md`. The AUTH-02 deploy target is corrected below to the
+> **owner's Windows PC** (previously mis-stated as the dispatcher's Linux box); see
+> `docs/decisions/auth02_deploy_target.md`.
+
 Status: READY FOR GPT FINAL REVIEW, 2026-11-18 (London). master e91b881 (+ one docs-only commit adding docs/decisions/mvp_acceptance.md). **V99 24h soak = FAIL (23/24 cycles, 95.83% < 99%). The project owner accepted this single transient failure as a known risk on 2026-11-18. It is NOT a V99 pass and no threshold was changed.**
 
 ## 1. Summary
@@ -19,7 +26,7 @@ Status: READY FOR GPT FINAL REVIEW, 2026-11-18 (London). master e91b881 (+ one d
 - The held-out Recall@20 shortfall is recorded as a KNOWN LIMIT. It was deliberately NOT tuned, to avoid held-out leakage. The sealed TEST split was never accessed.
 
 ## 4. Decisions (delegated by Cd, 2026-10-29; recorded in docs/decisions)
-- AUTH-02: local single-machine deploy on the dispatcher's Linux box. No Docker, Postgres or cloud spend. The image digest is "N/A (local deployment, no container)", not faked.
+- AUTH-02: local single-machine deploy on the owner's Windows PC. No Docker, Postgres or cloud spend. The image digest is "N/A (local deployment, no container)", not faked.
 - AUTH-06: approved for a local/self-hosted "v1.0 local release" ONLY. No public outreach, no paid services. The production go/no-go stays refused for anything public.
 - G20: offline parts only; outreach is off.
 - M70: skipped. C30/C31: off.

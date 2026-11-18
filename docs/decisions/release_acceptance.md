@@ -1,11 +1,21 @@
 # Decision: TechPulse-AI Staging Release Acceptance and Security Sign-off (V90)
 
+> **SUPERSEDED (2026-11-18):** The production/release sign-off below predates the V99
+> FAIL (23/24 cycles, 95.83% < 99%; risk owner-accepted, re-run explicitly waived
+> 2026-11-18), the GPT final review **NO-GO** (2026-11-18), and the AUTH-02 deploy-target
+> correction (owner's Windows PC, not a separate Linux machine). It is retained only as
+> historical V90-stage evidence. **This project is a development build with documented
+> known limitations, NOT a passed final acceptance.** Statements of "production READY",
+> "APPROVED", "PASS" for the release gate, and "V99 pending/GATED" below are superseded.
+> See `docs/acceptance/GPT_FINAL_REVIEW_VERDICT.md`, `mvp_acceptance.md`,
+> `heldout_recall_known_limit.md` and `auth02_deploy_target.md`.
+
 - **Ticket:** `V90`
 - **Run ID:** `v90-20261029T120754Z`
 - **Generated At:** `2026-10-29T12:07:54.764060+00:00`
-- **Release Status:** **production READY**
-- **Staging Deployment Allowed:** `True`
-- **Production Deployment Allowed:** `True`
+- **Release Status:** ~~**production READY**~~ **(SUPERSEDED — development build, not accepted)**
+- **Staging Deployment Allowed:** `True` *(superseded)*
+- **Production Deployment Allowed:** `True` *(superseded)*
 - **AUTH-02 (Staging Env):** `Granted (local single-machine only)`
 - **AUTH-06 (Production Sign-off):** `Granted (local v1.0 release only; public outreach REFUSED)`
 
@@ -29,7 +39,7 @@ All Section 10 quantitative thresholds, P0 implementation tasks, security contro
 | 高置信趋势 | Tier-A 来源 | ≥2 | 4 | E10 | **PASS** |
 | 安全 | 红队 fixtures | ≥100 | 160 | Q20 | **PASS** |
 | 安全 | 未授权 Tool Call / Secret 泄漏 / Egress 越权 | 0 | 0 | S20/Q20 | **PASS** |
-| 运维 | 24h P0 运行成功率 | ≥99% | gated (pending V99 soak run) | V99 | **GATED** |
+| 运维 | 24h P0 运行成功率 | ≥99% | gated (pending V99 soak run) | V99 | **GATED** *(superseded: V99 ran and FAILED, 23/24)* |
 | 预算 | 每日 LLM 总支出 | ≤$25 | $0.00 (budget cap $25.00, router default local/template) | O30 | **PASS** |
 
 ## 3. P0 WBS Tasks Matrix
@@ -64,8 +74,8 @@ All Section 10 quantitative thresholds, P0 implementation tasks, security contro
 | `O10` | 容器构建、测试发布与不可变版本 | Deploy | **PASS** | release.py dry-run migration & smoke test |
 | `O20` | Temporal 调度、重试、DLQ 与幂等 | Ops | **PASS** | orchestrator.py local orchestrator |
 | `O30` | 指标、成本控制与告警 | Ops | **PASS** | metrics.py $25 budget circuit breaker & alerts |
-| `V90` | 综合发布闸门与安全签收 | QA | **PASS** | go_nogo.py overall deterministic release gate |
-| `V99` | 连续 24 小时无人值守验收 | Ops | **GATED** | Gated: 24h soak test pending post-V90 staging |
+| `V90` | 综合发布闸门与安全签收 | QA | **PASS** *(superseded)* | go_nogo.py overall deterministic release gate |
+| `V99` | 连续 24 小时无人值守验收 | Ops | **GATED** *(superseded: V99 ran and FAILED, 23/24; owner-accepted, re-run waived 2026-11-18)* | Gated: 24h soak test pending post-V90 staging |
 
 ## 4. Security, Governance, and Policy Sign-off
 
@@ -115,9 +125,9 @@ No active blockers for staging release.
 ## 7. Signatures and Release Authority
 
 - **Responsible Agent:** `QAAgent` (Section 9 #### V90)
-- **Gate Evaluation:** `production READY`
-- **Staging Gate:** APPROVED
-- **Production Gate:** APPROVED (Local v1.0 release only; public deployment & outreach REFUSED)
+- **Gate Evaluation:** `production READY` *(superseded)*
+- **Staging Gate:** APPROVED *(superseded)*
+- **Production Gate:** APPROVED (Local v1.0 release only; public deployment & outreach REFUSED) *(superseded — see banner; GPT final review NO-GO 2026-11-18)*
 
 ## Known-Limits Note
 
