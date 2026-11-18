@@ -74,7 +74,7 @@ checks: `uv run ruff check .` and `uv run mypy`.
 | V99 24h soak | FAIL 23/24, owner-accepted, re-run waived | `v99pc1` on the Windows PC: 95.83% < 99% (one transient arxiv `retryable_error` in cycle #21). Cd accepted the risk and waived a re-run on 2026-11-18; the verdict stays FAIL. |
 | Held-out Recall@20 0.8182 < 0.85 | owner-waived | Re-measured on `f41d756`; nDCG@10 0.8954 ok. RETfix found no sound improvement; `docs/decisions/heldout_recall_known_limit.md`. |
 | AUTH-02 deploy target | fixed (Windows PC) | Corrected 2026-11-18 to the environment validated by smoke + V99; the separate Linux target was dropped. |
-| v99box3 duplicate-after-resume | `DUP_STATUS_PLACEHOLDER` | Being finished by ticket DUPfix; dispatcher fills this in. |
+| v99box3 duplicate-after-resume | fixed (regression-tested, no new 24h run) | Root cause: `SoakRunner` kept one in-memory record list per run_id; when a collector timed out after the 6.5h host suspension and was retried, records of both attempts were archived by D10, so the same `(source_id, source_record_id)` (github 1362490) appeared twice and the orchestrator counted 1 duplicate. Fix (`src/techpulse/ops/soak.py`): per-task record buffer with an attempt guard, successful retry fully replaces earlier attempt, D10 dedupe on `(source_id, source_record_id)`, per-task records persisted to disk for restart/adopt recovery, saved `last_due` used for the next slot. 950 tests incl. new regression tests; not re-validated by a new 24h run (waived). Detail: `docs/acceptance/GPT_FINAL_REVIEW_VERDICT.md`. |
 | README stale | fixed | This file now reflects the real state. |
 | Evidence archive | fixed | Tracked under `docs/acceptance/` (`.orchestra/` and `artifacts/` are git-ignored). |
 
