@@ -1,15 +1,18 @@
-# Deployment authorization (Ticket DECbox, updating Ticket DEC).
-# Delegated decision by dispatcher on Cd's behalf (2026-10-29); target updated per Ticket DECbox.
+# Deployment authorization (Ticket DEC, updated by owner decision 2026-11-18).
+# Delegated decision by dispatcher on Cd's behalf (2026-10-29); target corrected 2026-11-18.
 
-# AUTH-02: Local single-machine deployment on a separate always-on Linux machine
-# (x86_64, Python via uv, no Docker, no Postgres), NOT the owner's Windows PC.
-# Reason for change: the owner's PC shuts down nightly.
+# AUTH-02: Local single-machine deployment on the owner's Windows PC.
+# This is the environment validated by the smoke test and the 24h V99 soak run:
+# scheduled tasks, local uvicorn (127.0.0.1) + soak runner, SQLite, Python via uv/venv,
+# no Docker, no Postgres. The separate Linux target was never validated and was
+# dropped by owner decision 2026-11-18. The host_platform value below describes the
+# deployed host: the owner's Windows PC.
 # Target: local only. SQLite database, local runner (uvicorn + O20 local orchestrator).
 # No Docker, no Postgres, no cloud spend. Cloud / public deployment remains refused.
 auth02:
   granted: true
   target: local
-  host_platform: linux_x86_64
+  host_platform: windows_x86_64
   python_runner: uv
   allowed_targets:
     - local

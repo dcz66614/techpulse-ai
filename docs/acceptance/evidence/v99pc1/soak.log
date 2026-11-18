@@ -1,0 +1,100 @@
+Starting V99 24-hour soak runner (interval: 60.0m)...
+[2026-11-17T10:25:51Z] Starting cycle 1: due=2026-11-17T10:25:51Z actual=2026-11-17T10:25:51Z
+[2026-11-17T10:27:03Z] Cycle 1 finished: run_id=v99-20261117T102551Z-0001 success=True gap=71.9s
+[2026-11-17T11:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-17T11:25:51Z] Starting cycle 2: due=2026-11-17T11:25:51Z actual=2026-11-17T11:25:51Z
+[2026-11-17T11:27:05Z] Cycle 2 finished: run_id=v99-20261117T112551Z-0002 success=True gap=3602.2s
+[2026-11-17T12:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-17T12:25:51Z] Starting cycle 3: due=2026-11-17T12:25:51Z actual=2026-11-17T12:25:51Z
+[2026-11-17T12:27:04Z] Cycle 3 finished: run_id=v99-20261117T122551Z-0003 success=True gap=3599.4s
+[2026-11-17T13:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-17T13:25:51Z] Starting cycle 4: due=2026-11-17T13:25:51Z actual=2026-11-17T13:25:51Z
+[2026-11-17T13:26:55Z] Cycle 4 finished: run_id=v99-20261117T132551Z-0004 success=True gap=3590.8s
+[2026-11-17T14:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-17T14:25:51Z] Starting cycle 5: due=2026-11-17T14:25:51Z actual=2026-11-17T14:25:51Z
+[2026-11-17T14:26:56Z] Cycle 5 finished: run_id=v99-20261117T142551Z-0005 success=True gap=3601.0s
+[2026-11-17T15:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-17T15:25:51Z] Starting cycle 6: due=2026-11-17T15:25:51Z actual=2026-11-17T15:25:51Z
+[2026-11-17T15:27:32Z] Cycle 6 finished: run_id=v99-20261117T152551Z-0006 success=True gap=3635.7s
+[2026-11-17T16:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-17T16:25:51Z] Starting cycle 7: due=2026-11-17T16:25:51Z actual=2026-11-17T16:25:51Z
+[2026-11-17T16:28:53Z] Cycle 7 finished: run_id=v99-20261117T162551Z-0007 success=True gap=3680.9s
+[2026-11-17T17:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-17T17:25:51Z] Starting cycle 8: due=2026-11-17T17:25:51Z actual=2026-11-17T17:25:51Z
+[2026-11-17T17:26:58Z] Cycle 8 finished: run_id=v99-20261117T172551Z-0008 success=True gap=3484.8s
+[2026-11-17T18:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-17T18:25:51Z] Starting cycle 9: due=2026-11-17T18:25:51Z actual=2026-11-17T18:25:51Z
+[2026-11-17T18:32:02Z] Cycle 9 finished: run_id=v99-20261117T182551Z-0009 success=True gap=3904.2s
+[2026-11-17T19:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-17T19:25:51Z] Starting cycle 10: due=2026-11-17T19:25:51Z actual=2026-11-17T19:25:51Z
+[2026-11-17T19:26:55Z] Cycle 10 finished: run_id=v99-20261117T192551Z-0010 success=True gap=3293.2s
+[2026-11-17T20:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-17T20:25:51Z] Starting cycle 11: due=2026-11-17T20:25:51Z actual=2026-11-17T20:25:51Z
+[2026-11-17T20:26:55Z] Cycle 11 finished: run_id=v99-20261117T202551Z-0011 success=True gap=3600.0s
+[2026-11-17T21:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-17T21:25:51Z] Starting cycle 12: due=2026-11-17T21:25:51Z actual=2026-11-17T21:25:51Z
+[2026-11-17T21:26:57Z] Cycle 12 finished: run_id=v99-20261117T212551Z-0012 success=True gap=3602.2s
+[2026-11-17T22:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-17T22:25:51Z] Starting cycle 13: due=2026-11-17T22:25:51Z actual=2026-11-17T22:25:51Z
+[2026-11-17T22:28:17Z] Cycle 13 finished: run_id=v99-20261117T222551Z-0013 success=True gap=3679.2s
+[2026-11-17T23:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-17T23:25:51Z] Starting cycle 14: due=2026-11-17T23:25:51Z actual=2026-11-17T23:25:51Z
+[2026-11-17T23:26:55Z] Cycle 14 finished: run_id=v99-20261117T232551Z-0014 success=True gap=3518.3s
+[2026-11-18T00:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-18T00:25:52Z] Starting cycle 15: due=2026-11-18T00:25:51Z actual=2026-11-18T00:25:52Z
+[2026-11-18T00:44:48Z] Cycle 15 finished: run_id=v99-20261118T002552Z-0015 success=True gap=4673.4s
+[2026-11-18T01:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-18T01:25:51Z] Starting cycle 16: due=2026-11-18T01:25:51Z actual=2026-11-18T01:25:51Z
+[2026-11-18T01:44:01Z] Cycle 16 finished: run_id=v99-20261118T012551Z-0016 success=True gap=3552.3s
+[2026-11-18T02:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-18T02:25:51Z] Starting cycle 17: due=2026-11-18T02:25:51Z actual=2026-11-18T02:25:51Z
+[2026-11-18T02:51:10Z] Cycle 17 finished: run_id=v99-20261118T022551Z-0017 success=True gap=4029.9s
+[2026-11-18T03:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-18T03:25:51Z] Starting cycle 18: due=2026-11-18T03:25:51Z actual=2026-11-18T03:25:51Z
+[2026-11-18T03:51:10Z] Cycle 18 finished: run_id=v99-20261118T032551Z-0018 success=True gap=3600.0s
+[2026-11-18T04:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-18T04:25:51Z] Starting cycle 19: due=2026-11-18T04:25:51Z actual=2026-11-18T04:25:51Z
+[2026-11-18T04:34:37Z] Cycle 19 finished: run_id=v99-20261118T042551Z-0019 success=True gap=2606.3s
+[2026-11-18T05:25:51Z] Resumed after due time (gap=0.5s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-18T05:25:51Z] Starting cycle 20: due=2026-11-18T05:25:51Z actual=2026-11-18T05:25:51Z
+[2026-11-18T05:47:32Z] Cycle 20 finished: run_id=v99-20261118T052551Z-0020 success=True gap=4375.5s
+[2026-11-18T06:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-18T06:25:51Z] Starting cycle 21: due=2026-11-18T06:25:51Z actual=2026-11-18T06:25:51Z
+[2026-11-18T06:49:32Z] Cycle 21 finished: run_id=v99-20261118T062551Z-0021 success=False gap=3719.7s
+[2026-11-18T07:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-18T07:25:51Z] Starting cycle 22: due=2026-11-18T07:25:51Z actual=2026-11-18T07:25:51Z
+[2026-11-18T07:43:56Z] Cycle 22 finished: run_id=v99-20261118T072551Z-0022 success=True gap=3264.6s
+[2026-11-18T08:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-18T08:25:51Z] Starting cycle 23: due=2026-11-18T08:25:51Z actual=2026-11-18T08:25:51Z
+[2026-11-18T08:44:38Z] Cycle 23 finished: run_id=v99-20261118T082551Z-0023 success=True gap=3641.8s
+[2026-11-18T09:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+[2026-11-18T09:25:51Z] Starting cycle 24: due=2026-11-18T09:25:51Z actual=2026-11-18T09:25:51Z
+[2026-11-18T09:40:14Z] Cycle 24 finished: run_id=v99-20261118T092551Z-0024 success=True gap=3336.2s
+[2026-11-18T10:25:51Z] Resumed after due time (gap=0.0s). Proceeding immediately to next cycle (no burst catch-up).
+============================================================
+TechPulse-AI V99 Soak Runner Status
+============================================================
+Status:             FAIL
+Start Time (UTC):   2026-11-17T10:25:51Z
+Current Time (UTC): 2026-11-18T10:55:28Z
+Elapsed Time:       24.49 hours (88177s / 86400s required)
+Cycles Completed:   24
+Successful Cycles:  23
+Failed Cycles:      1
+Running Success:    95.83% (Threshold: ≥99.0%)
+Duplicates Written: 0
+Total Cost (USD):   $0.00
+Reports Published:  24
+------------------------------------------------------------
+Per-Source Breakdown (AUTH-04):
+  - openalex    : 24/24 (100.0%)
+  - crossref    : 24/24 (100.0%)
+  - arxiv       : 23/24 (95.8%)
+  - github      : 24/24 (100.0%)
+  - hn          : 24/24 (100.0%)
+============================================================
+V99 soak evaluation: FAIL
+  manifest: C:\Users\Du200\Projects\techpulse-ai\artifacts\v99pc1\V99\manifest.json
+  metrics: C:\Users\Du200\Projects\techpulse-ai\artifacts\v99pc1\V99\metrics.json
+  soak_test: C:\Users\Du200\Projects\techpulse-ai\artifacts\v99pc1\V99\soak_test.json
+  mvp_acceptance: C:\Users\Du200\Projects\techpulse-ai\docs\decisions\mvp_acceptance.md

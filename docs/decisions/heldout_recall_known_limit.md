@@ -36,3 +36,18 @@ Per-language breakdown on the held-out split (11 queries):
 ## Consequences
 
 - zh recall is weaker; future work would add more dev queries and improve retrieval, tuned on dev/dev2 only, with a fresh held-out set.
+
+## Re-measured on f41d756 (2026-11-18)
+
+The held-out split was re-measured once, sealed, on the latest code commit `f41d756`. The scores are unchanged: held-out nDCG@10 0.8954 (>= 0.75, ok) and Recall@20 0.8182 (< 0.85 threshold). Ticket RETfix (builder hy3) tried 5 principled variants tuned on dev/dev2 only and never touching held-out; it found no sound improvement and made no src change. Recall@20 therefore stays below threshold. Status: **owner-waived**. Thresholds were not relaxed.
+
+| Split | Queries | nDCG@10 | Recall@20 | Status |
+|---|---|---|---|:---:|
+| `dev` | 8 | 0.8347 | 0.9167 | PASS |
+| `dev2` | 13 | 0.8572 | 1.0000 | PASS |
+| `heldout` | 11 | 0.8954 | 0.8182 | Recall@20 FAIL — owner-waived |
+| `heldout en` | — | 0.9566 | 0.8750 | — |
+| `heldout zh` | — | 0.8605 | 0.7857 | — |
+
+- **Decided-by:** Owner (Cd), 2026-11-18
+- Evidence: `docs/acceptance/evidence/split_eval_f41d756.txt`

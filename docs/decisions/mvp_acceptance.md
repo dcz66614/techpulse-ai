@@ -46,7 +46,7 @@ The 24-hour soak test evaluation determined status **FAIL**. Measured elapsed ti
 
 - **Idempotency & Safe Resume:** Checkpointed state verified via SQLite (`o20_soak.sqlite`).
 - **Failures Recorded Honestly:** Network failures are logged with full run_id lineage and never faked.
-- **Deploy Target (corrected 2026-11-18):** the generator text said "dedicated Linux box"; run v99pc1 actually ran on the owner's PC after two box runs (v99box3, v99box4) failed from box suspension.
+- **Deploy Target (corrected 2026-11-18):** an earlier generator said "dedicated Linux box", but the separate Linux target was never validated. Run v99pc1 actually ran on the owner's Windows PC after two box runs (v99box3, v99box4) failed from box suspension. AUTH-02 was corrected to the owner's PC by owner decision 2026-11-18.
 - **Published Reports:** 24 reports published with full provenance.
 
 ---
@@ -57,5 +57,6 @@ The 24-hour soak test evaluation determined status **FAIL**. Measured elapsed ti
 - **Cause:** cycle 21 (`v99-20261118T062551Z-0021`, 2026-11-18 06:25:51Z) failed because arxiv (C12) returned `retryable_error`. The other four sources were 100% in that cycle and QA passed. Over 24 hourly cycles, a single failed cycle puts success at 95.83%, so one transient source error makes the 99% bar unreachable.
 - **Everything else met its bar:** duration 24.00h, max gap 3601s (limit 7200s), 0 duplicates, $0.00 cost, 0 security events.
 - **Owner decision (Cd, 2026-11-18):** accept this single transient failure as a known limit and proceed to the GPT final review. This is a recorded risk acceptance, not a V99 pass.
+- **Re-run explicitly WAIVED (Cd, 2026-11-18):** the owner waived a re-run of the 24h V99 soak. No re-run was performed and none is planned. The formal verdict stays **FAIL**; the 99% threshold was not relaxed.
 - **Observation:** cycle duration rose from about 65s (daytime) to about 900-1500s overnight on the owner's PC. All completed, but the cause (PC load or source latency) was not investigated.
-- Evidence: `artifacts/v99pc1_owner_accepted/` (local only, git-ignored).
+- Evidence: archived under `docs/acceptance/evidence/v99pc1/` (previously `artifacts/v99pc1_owner_accepted/`, local only, git-ignored).
