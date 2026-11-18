@@ -468,6 +468,74 @@ class SoakRunner:
             return dict(self._injected_activities)
         return self._build_real_activities()
 
+    def _collect_record_path(self, run_id: str, task_id: str) -> Path:
+        return self.artifacts_dir / run_id / "_collect" / f"{task_id}.json"
+
+    def _persist_collector_records(
+        self,
+        run_id: str,
+        task_id: str,
+        attempt: int,
+        records: Sequence[RawRecord],
+    ) -> None:
+        """Persist one collector task's successful records for restart recovery.
+
+        The in-memory buffer is lost if the process restarts and the
+        orchestrator adopts a cached collector result without re-invoking the
+        activity (``_adopt`` via ``_lookup`` / ``_resume_running``). The on-disk
+        copy lets D10 recover those raw records. Persistence is best-effort: a
+        disk error must never fail the collector activity itself.
+        """
+        path = self._collect_record_path(run_id, task_id)
+        temporary: Path | None = None
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            payload = {
+                "attempt": attempt,
+                "records": [r.model_dump(mode="json") for r in records],
+            }
+            body = json.dumps(payload).encode("utf-8")
+            temporary = path.with_name(path.name + ".tmp")
+            with temporary.open("wb") as handle:
+                handle.write(body)
+                handle.flush()
+                os.fsync(handle.fileno())
+            temporary.replace(path)
+        except OSError:
+            if temporary is not None:
+                try:
+                    temporary.unlink(missing_ok=True)
+                except OSError:
+                    pass
+
+    def _remove_collector_records(self, run_id: str, task_id: str) -> None:
+        """Drop a collector task's persisted records on a non-success result."""
+        try:
+            self._collect_record_path(run_id, task_id).unlink(missing_ok=True)
+        except OSError:
+            pass
+
+    def _load_collector_records(self, run_id: str, task_id: str) -> list[RawRecord]:
+        """Load a collector task's persisted records; treat corrupt files as empty."""
+        path = self._collect_record_path(run_id, task_id)
+        if not path.is_file():
+            return []
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            if not isinstance(payload, dict):
+                return []
+            items = payload.get("records")
+            if not isinstance(items, list):
+                return []
+            loaded: list[RawRecord] = []
+            for item in items:
+                if not isinstance(item, dict):
+                    return []
+                loaded.append(RawRecord.model_validate(item))
+            return loaded
+        except Exception:
+            return []
+
     def _build_real_activities(self) -> dict[str, Activity]:
         """Construct real activities for O20 daily flow against configured sources."""
         activities: dict[str, Activity] = {}
@@ -579,8 +647,12 @@ class SoakRunner:
                         # stale records. The attempt check ignores a late
                         # zombie result from a superseded attempt.
                         by_task[context.task_id] = (context.attempt, list(records))
+                        self._persist_collector_records(
+                            context.run_id, context.task_id, context.attempt, records
+                        )
                     else:
                         by_task.pop(context.task_id, None)
+                        self._remove_collector_records(context.run_id, context.task_id)
 
                 rec_ids = tuple(r.source_record_id for r in records)
                 out_sha = hashlib.sha256("".join(rec_ids).encode("utf-8")).hexdigest()
@@ -606,7 +678,14 @@ class SoakRunner:
             for tid in TASK_TO_SOURCE:
                 entry = run_records_by_task.get(tid)
                 if entry is not None:
+                    # In-memory entry stays authoritative when present.
                     collected.extend(entry[1])
+                else:
+                    # A restarted runner may have adopted a cached successful
+                    # collector result without invoking the activity, leaving
+                    # the in-memory buffer empty. Recover the raw records from
+                    # the on-disk copy written on collector SUCCESS.
+                    collected.extend(self._load_collector_records(context.run_id, tid))
 
             # Deduplicate by (source_id, source_record_id) to ensure idempotency
             seen_source_keys: set[tuple[str, str]] = set()

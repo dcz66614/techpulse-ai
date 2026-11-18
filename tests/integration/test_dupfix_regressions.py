@@ -28,7 +28,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -41,6 +41,7 @@ from techpulse.collectors.github import GitHubCollection
 from techpulse.collectors.hn import HNCollection
 from techpulse.contracts import LicenseStatus, RawRecord, SourceId, TaskStatus
 from techpulse.ops.soak import SoakRunner, _parse_iso, make_stub_activities
+from techpulse.workflows.activities import ActivityContext
 from techpulse.workflows.orchestrator import ManualClock
 
 
@@ -332,6 +333,231 @@ def test_successful_empty_retry_clears_stale_records_from_timed_out_attempt(
         ).fetchall()
         assert len(dupe_check) == 0
         con.close()
+
+
+# ---------------------------------------------------------------------------
+# DUPfix5 — restart adoption loses the in-memory raw-record buffer
+# ---------------------------------------------------------------------------
+
+
+def _activity_context(
+    clock: ManualClock,
+    task_id: str,
+    run_id: str,
+    *,
+    attempt: int = 1,
+    source_id: str | None = None,
+) -> ActivityContext:
+    """Build a minimal ActivityContext for directly invoking a soak activity."""
+    return ActivityContext(
+        task_id=task_id,
+        run_id=run_id,
+        attempt=attempt,
+        input_sha256="a" * 64,
+        report_kind="daily",
+        slot="",
+        deadline=clock.now() + timedelta(seconds=3600),
+        clock=clock,
+        params={"source_id": source_id} if source_id else {},
+        upstream={},
+    )
+
+
+def _install_github_collector(
+    monkeypatch: pytest.MonkeyPatch,
+    records_by_attempt: Sequence[RawRecord],
+) -> list[int]:
+    """Replace GitHubCollector with a fake returning one record per invocation."""
+    calls: list[int] = []
+
+    class FakeGitHubCollector:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def __enter__(self) -> FakeGitHubCollector:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def collect(self, _repos: list[str], cursor: str | None = None) -> GitHubCollection:
+            idx = len(calls)
+            calls.append(idx)
+            rec = records_by_attempt[min(idx, len(records_by_attempt) - 1)]
+            return GitHubCollection((rec,), f"cursor-{idx}")
+
+    monkeypatch.setattr("techpulse.collectors.github.GitHubCollector", FakeGitHubCollector)
+    return calls
+
+
+def test_collector_records_survive_restart_adoption(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """D10 recovers a collector's raw records from disk after the buffer is lost.
+
+    Mirrors the Copilot DUPfix5 blocking finding on 6fe0fea: after a restart the
+    orchestrator may ``_adopt()`` a cached successful collector result via
+    ``_lookup`` / ``_resume_running`` WITHOUT invoking the collector activity,
+    so ``_run_records`` is empty. On 6fe0fea D10 then archives no records for
+    that task (legit data lost). The fix persists records on collector SUCCESS
+    and D10 falls back to that file, so the archive still holds the record with
+    zero duplicates.
+    """
+    clock = SuspendSimulatingClock(datetime(2026, 11, 3, 0, 53, 23, tzinfo=UTC))
+    _install_github_collector(monkeypatch, [_github_record(clock, 54594)])
+
+    artifacts = tmp_path / "artifacts"
+    db = tmp_path / "soak.sqlite"
+    run_id = "v99-restart-adopt-0001"
+
+    runner1 = SoakRunner(
+        artifacts_dir=artifacts,
+        docs_dir=tmp_path / "docs",
+        database_path=db,
+        clock=clock,
+    )
+    collector1 = runner1.build_activities()["C20"]
+    cres = collector1(_activity_context(clock, "C20", run_id, source_id="github"))
+    assert cres.status is TaskStatus.SUCCESS
+
+    # Simulate a process restart: a brand-new runner shares artifacts/db but
+    # its in-memory record buffer is empty (the cached collector result would
+    # be adopted without invoking the activity).
+    runner2 = SoakRunner(
+        artifacts_dir=artifacts,
+        docs_dir=tmp_path / "docs",
+        database_path=db,
+        clock=clock,
+    )
+    assert run_id not in runner2._run_records
+
+    d10 = runner2.build_activities()["D10"]
+    dres = d10(_activity_context(clock, "D10", run_id))
+    assert dres.status is TaskStatus.SUCCESS
+
+    raw_text = (artifacts / run_id / "D10" / "staging" / "raw.ndjson").read_text(encoding="utf-8")
+    assert "1362490" in raw_text
+    assert raw_text.count("1362490") == 1
+
+    con = sqlite3.connect(db)
+    gh = con.execute("SELECT * FROM raw_records WHERE source_record_id='1362490'").fetchall()
+    assert len(gh) == 1
+    assert gh[0][5] == "stars: 54594"
+    dupe_check = con.execute(
+        "SELECT source_id, source_record_id, COUNT(*) AS cnt "
+        "FROM raw_records GROUP BY source_id, source_record_id HAVING cnt > 1"
+    ).fetchall()
+    assert len(dupe_check) == 0
+    con.close()
+
+
+def test_corrupt_collector_cache_file_is_ignored(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A corrupt persisted collector file is treated as empty, never crashes D10."""
+    clock = SuspendSimulatingClock(datetime(2026, 11, 3, 1, 0, 0, tzinfo=UTC))
+    _install_github_collector(monkeypatch, [_github_record(clock, 54594)])
+
+    artifacts = tmp_path / "artifacts"
+    db = tmp_path / "soak.sqlite"
+    run_id = "v99-corrupt-cache-0001"
+
+    runner = SoakRunner(
+        artifacts_dir=artifacts,
+        docs_dir=tmp_path / "docs",
+        database_path=db,
+        clock=clock,
+    )
+    collector = runner.build_activities()["C20"]
+    assert collector(_activity_context(clock, "C20", run_id, source_id="github")).status is (
+        TaskStatus.SUCCESS
+    )
+
+    # Overwrite the persisted file with corrupt JSON.
+    cache_file = artifacts / run_id / "_collect" / "C20.json"
+    assert cache_file.is_file()
+    cache_file.write_text("{not valid json", encoding="utf-8")
+
+    # Simulate restart (empty buffer); D10 must ignore the corrupt file.
+    runner2 = SoakRunner(
+        artifacts_dir=artifacts,
+        docs_dir=tmp_path / "docs",
+        database_path=db,
+        clock=clock,
+    )
+    d10 = runner2.build_activities()["D10"]
+    dres = d10(_activity_context(clock, "D10", run_id))
+    assert dres.status is TaskStatus.SUCCESS
+
+    raw_text = (artifacts / run_id / "D10" / "staging" / "raw.ndjson").read_text(encoding="utf-8")
+    assert "1362490" not in raw_text
+    assert raw_text.strip() == ""
+
+    con = sqlite3.connect(db)
+    gh = con.execute("SELECT * FROM raw_records WHERE source_record_id='1362490'").fetchall()
+    assert len(gh) == 0
+    con.close()
+
+
+def test_retry_persists_only_latest_attempt_records(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A retried collector overwrites its cache; a late zombie attempt cannot.
+
+    Both attempts collect source_record_id "1362490"; only the latest
+    SUCCESS's records (stars 54594) may be persisted, and a late-finishing
+    attempt 1 result (stars 54593) must not overwrite them. D10 after a restart
+    yields exactly one record — the latest attempt's.
+    """
+    clock = SuspendSimulatingClock(datetime(2026, 11, 3, 2, 0, 0, tzinfo=UTC))
+    _install_github_collector(
+        monkeypatch,
+        [_github_record(clock, 54593), _github_record(clock, 54594)],
+    )
+
+    artifacts = tmp_path / "artifacts"
+    db = tmp_path / "soak.sqlite"
+    run_id = "v99-retry-latest-0001"
+
+    runner = SoakRunner(
+        artifacts_dir=artifacts,
+        docs_dir=tmp_path / "docs",
+        database_path=db,
+        clock=clock,
+    )
+    collector = runner.build_activities()["C20"]
+    assert collector(
+        _activity_context(clock, "C20", run_id, attempt=1, source_id="github")
+    ).status is (TaskStatus.SUCCESS)
+    assert collector(
+        _activity_context(clock, "C20", run_id, attempt=2, source_id="github")
+    ).status is (TaskStatus.SUCCESS)
+    # A late zombie result from superseded attempt 1 must be ignored.
+    assert collector(
+        _activity_context(clock, "C20", run_id, attempt=1, source_id="github")
+    ).status is (TaskStatus.SUCCESS)
+
+    # Restart: empty buffer, D10 loads only the latest attempt's records.
+    runner2 = SoakRunner(
+        artifacts_dir=artifacts,
+        docs_dir=tmp_path / "docs",
+        database_path=db,
+        clock=clock,
+    )
+    d10 = runner2.build_activities()["D10"]
+    dres = d10(_activity_context(clock, "D10", run_id))
+    assert dres.status is TaskStatus.SUCCESS
+
+    raw_text = (artifacts / run_id / "D10" / "staging" / "raw.ndjson").read_text(encoding="utf-8")
+    assert raw_text.count("1362490") == 1
+    assert "stars: 54594" in raw_text
+    assert "stars: 54593" not in raw_text
+
+    con = sqlite3.connect(db)
+    gh = con.execute("SELECT * FROM raw_records WHERE source_record_id='1362490'").fetchall()
+    assert len(gh) == 1
+    assert gh[0][5] == "stars: 54594"
+    con.close()
 
 
 # ---------------------------------------------------------------------------
