@@ -80,3 +80,7 @@ checks: `uv run ruff check .` and `uv run mypy`.
 
 This is a development build, not a final-acceptance-passed release. Deploy and release
 boundaries stay local/self-hosted only; public deployment and outreach remain refused.
+
+## License
+
+This project is released under the [MIT License](LICENSE).
