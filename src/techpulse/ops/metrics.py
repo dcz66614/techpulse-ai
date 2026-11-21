@@ -549,21 +549,19 @@ class MetricsStore:
         if column is None:
             raise ValueError("unknown rollup dimension")
         rows = self._conn.execute(
-            f"""
-            SELECT {column} AS key,
-                   SUM(input_tokens) AS input_tokens,
-                   SUM(output_tokens) AS output_tokens,
-                   SUM(cost_usd) AS cost_usd,
-                   SUM(latency_ms) AS latency_ms,
-                   SUM(data_volume) AS data_volume,
-                   SUM(CASE WHEN qa_pass = 1 THEN 1 ELSE 0 END) AS qa_pass,
-                   SUM(CASE WHEN qa_pass = 0 THEN 1 ELSE 0 END) AS qa_fail,
-                   SUM(anomaly_blocked) AS anomaly_blocked,
-                   COUNT(*) AS samples
-            FROM o30_usage
-            GROUP BY {column}
-            ORDER BY {column}
-            """
+            f"SELECT {column} AS key, "  # nosec B608  # column from fixed _DIMENSIONS allowlist
+            "SUM(input_tokens) AS input_tokens, "
+            "SUM(output_tokens) AS output_tokens, "
+            "SUM(cost_usd) AS cost_usd, "
+            "SUM(latency_ms) AS latency_ms, "
+            "SUM(data_volume) AS data_volume, "
+            "SUM(CASE WHEN qa_pass = 1 THEN 1 ELSE 0 END) AS qa_pass, "
+            "SUM(CASE WHEN qa_pass = 0 THEN 1 ELSE 0 END) AS qa_fail, "
+            "SUM(anomaly_blocked) AS anomaly_blocked, "
+            "COUNT(*) AS samples "
+            "FROM o30_usage "
+            f"GROUP BY {column} "
+            f"ORDER BY {column}"
         ).fetchall()
         found: list[Rollup] = []
         for row in rows:

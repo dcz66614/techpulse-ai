@@ -10,10 +10,10 @@ from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
-from xml.etree import ElementTree
 
 import httpx
 import yaml
+from defusedxml import ElementTree
 
 from techpulse.collectors.github import CollectorError
 from techpulse.contracts import LicenseStatus, RawRecord, SourceId, TaskStatus

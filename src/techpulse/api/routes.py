@@ -665,7 +665,7 @@ def _load_evidence(
         return {}
     marks = ",".join("?" for _ in evidence_ids)
     query = (
-        "SELECT e.evidence_id, e.excerpt, e.license_status, e.sha256, "
+        "SELECT e.evidence_id, e.excerpt, e.license_status, e.sha256, "  # nosec B608  # placeholders only; values bound
         "r.canonical_url, r.published_at, r.collected_at "
         "FROM evidence_items AS e "
         "JOIN raw_records AS r ON r.id = e.source_record_id "
@@ -728,7 +728,7 @@ def _load_trends(connection: sqlite3.Connection, trend_ids: Sequence[str]) -> di
         return {}
     marks = ",".join("?" for _ in trend_ids)
     query = (
-        "SELECT trend_id, topic, window_days, score, confidence, scored_at, "
+        "SELECT trend_id, topic, window_days, score, confidence, scored_at, "  # nosec B608  # placeholders only; values bound
         "features_json, source_families FROM trend_scores "
         f"WHERE trend_id IN ({marks})"
     )
@@ -798,7 +798,7 @@ def _attach_links(
     trend_ids = list(trends)[:MAX_IDS]
     marks = ",".join("?" for _ in trend_ids)
     query = (
-        f"SELECT trend_id, evidence_id, relation FROM trend_evidence WHERE trend_id IN ({marks})"
+        f"SELECT trend_id, evidence_id, relation FROM trend_evidence WHERE trend_id IN ({marks})"  # nosec B608  # placeholders only; values bound
     )
     support: dict[str, set[str]] = {trend_id: set() for trend_id in trend_ids}
     contrary: dict[str, set[str]] = {trend_id: set() for trend_id in trend_ids}
@@ -885,7 +885,7 @@ def _cursor(
 ) -> tuple[str, str] | None:
     if token is None:
         return None
-    if token == "" or len(token) > 2048:
+    if token == "" or len(token) > 2048:  # nosec B105  # empty-string cursor validation, not a password
         raise ApiError(400, "invalid_cursor", "cursor is invalid")
     settings = settings_of(request)
     return verify_cursor(token, key=settings.cursor_key, kind=kind, query=query, now=time.time())

@@ -308,7 +308,7 @@ class SoakRunner:
                             )
                         if "max_cost_usd" in soak_cfg:
                             self.max_cost_usd = float(soak_cfg["max_cost_usd"])
-            except Exception:
+            except Exception:  # nosec B110  # intentional best-effort optional config parse
                 pass
 
     def _load_or_init_state(self) -> None:
@@ -336,8 +336,9 @@ class SoakRunner:
         state: dict[str, Any] = {
             "start_time": _iso_now(self.start_time()),
         }
-        if getattr(self, "last_due", None) is not None:
-            state["last_due"] = _iso_now(self.last_due)
+        last_due = self.last_due
+        if last_due is not None:
+            state["last_due"] = _iso_now(last_due)
         self.state_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
     def start_time(self) -> datetime:
@@ -377,7 +378,8 @@ class SoakRunner:
 
         due = start_time + k * interval, where k is chosen such that due is strictly
         after the slot of the last executed cycle.
-        If after_time is None, uses the timestamp of the last recorded cycle (or start_time if no cycles).
+        If after_time is None, uses the timestamp of the last recorded cycle
+        (or start_time if no cycles).
         """
         start = self.start_time()
         interval_seconds = max(1.0, self.interval_minutes * 60.0)
@@ -392,8 +394,9 @@ class SoakRunner:
                 return start
 
         ref_time = after_time
-        if getattr(self, "last_due", None) is not None and self.last_due > ref_time:
-            ref_time = self.last_due
+        last_due = self.last_due
+        if last_due is not None and last_due > ref_time:
+            ref_time = last_due
 
         diff_seconds = (ref_time - start).total_seconds()
         tolerance = 1.0 if interval_seconds > 2.0 else (interval_seconds * 0.5)
@@ -401,8 +404,8 @@ class SoakRunner:
         if k < 1:
             k = 1
 
-        if getattr(self, "last_due", None) is not None:
-            last_k = math.floor(((self.last_due - start).total_seconds() + tolerance) / interval_seconds)
+        if last_due is not None:
+            last_k = math.floor(((last_due - start).total_seconds() + tolerance) / interval_seconds)
             if k <= last_k:
                 k = last_k + 1
 
@@ -997,7 +1000,7 @@ class SoakRunner:
                     text = mpath.read_text(encoding="utf-8")
                     if re.search(r"ghp_[A-Za-z0-9]{36}", text):
                         security_leaks += 1
-                except Exception:
+                except Exception:  # nosec B110  # best-effort scan; unreadable files skipped
                     pass
 
             security_met = security_leaks == 0 and security_escalations == 0

@@ -689,7 +689,7 @@ def _metrics(report: Q30Report) -> dict[str, object]:
         "step_calls": dict(report.step_calls),
         "template_steps": True,
         "ticket": "Q30",
-        "token_source": "sum of tokens fields on stored activity results",
+        "token_source": "sum of tokens fields on stored activity results",  # nosec B105  # metadata label, not a password
         "tokens": report.tokens,
         "workflow_id": _WORKFLOW_ID,
     }
@@ -729,7 +729,7 @@ def _count_tables(database: Path, tables: Sequence[str]) -> dict[str, int]:
         for table in tables:
             if table not in _ALLOWED_TABLES:
                 raise ValueError("unknown table")
-            row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()
+            row = conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()  # nosec B608  # table checked against _ALLOWED_TABLES
             if row is None:
                 raise sqlite3.Error(table)
             value = row[0]

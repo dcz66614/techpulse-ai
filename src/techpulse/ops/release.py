@@ -12,7 +12,7 @@ from __future__ import annotations
 import hashlib
 import json
 import sqlite3
-import subprocess
+import subprocess  # nosec B404  # only fixed argv, no shell
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -464,7 +464,7 @@ def write_release(
 
 def git_commit(root: Path) -> str:
     """Return HEAD, or ``unknown`` when git cannot be read."""
-    completed = subprocess.run(
+    completed = subprocess.run(  # nosec B603, B607  # fixed git argv, no shell, no user input
         ["git", "rev-parse", "HEAD"],
         cwd=root,
         capture_output=True,

@@ -444,7 +444,9 @@ def test_requests_use_registry_user_agent_and_mailto(monkeypatch: pytest.MonkeyP
     request = seen[0]
     assert request.headers["User-Agent"] == config.user_agent
     assert request.url.params["mailto"] == config.mailto
-    assert request.url.params["filter"] == "default.search:retrieval,from_publication_date:2024-01-01"
+    assert (
+        request.url.params["filter"] == "default.search:retrieval,from_publication_date:2024-01-01"
+    )
     assert "authorization" not in {key.lower() for key in request.headers}
     blob = str(request.url) + "".join(request.headers.values())
     assert secret not in blob

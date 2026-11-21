@@ -1332,7 +1332,7 @@ class LocalOrchestrator:
         body: dict[str, object] = {
             "code": "policy_blocked",
             "errors": ("source disabled",),
-            "qa_pass": None,
+            "qa_pass": None,  # nosec B105  # status field value, not a password
             "records": [],
             "status": TaskStatus.POLICY_BLOCKED.value,
         }
@@ -1816,7 +1816,7 @@ def _count(conn: sqlite3.Connection, table: str) -> int:
         "o20_checkpoints",
     }:
         raise ValueError("unknown table")
-    row = conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()
+    row = conn.execute(f"SELECT COUNT(*) AS n FROM {table}").fetchone()  # nosec B608  # table from fixed allowlist
     if row is None:
         return 0
     return _cell_int(row, "n")

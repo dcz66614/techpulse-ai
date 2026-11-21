@@ -93,7 +93,7 @@ def count_database_tables(database: Path) -> dict[str, int]:
         for table in tables:
             if not table.isidentifier():
                 continue
-            row = conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()
+            row = conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()  # nosec B608  # table from sqlite_master, isidentifier-checked
             counts[table] = row[0] if row else 0
         return counts
     finally:

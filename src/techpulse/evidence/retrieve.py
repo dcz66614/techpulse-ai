@@ -446,7 +446,7 @@ def evidence_supports_claim(
 
 
 def _entity_terms(topic: str) -> frozenset[str]:
-    return frozenset(token for token in tokenize(topic) if token != "topic")
+    return frozenset(token for token in tokenize(topic) if token != "topic")  # nosec B105  # stopword, not a password
 
 
 def _measurement_terms(inputs: Mapping[str, object]) -> frozenset[str]:

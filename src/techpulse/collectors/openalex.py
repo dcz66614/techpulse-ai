@@ -88,9 +88,7 @@ def collect_openalex(
         return disabled_result(config, store, key)
     registry = config_path(path)
     effective_api_key = (
-        api_key
-        if api_key is not None
-        else os.environ.get("OPENALEX_API_KEY", "").strip() or None
+        api_key if api_key is not None else os.environ.get("OPENALEX_API_KEY", "").strip() or None
     )
     effective_updated = updated
     wm_ts = store.get_watermark(_SOURCE_ID, key)
@@ -104,7 +102,9 @@ def collect_openalex(
     stored_cursor = store.get_cursor(_SOURCE_ID, key)
     start_cursor = cursor
     if start_cursor is None and wm_ts is not None:
-        if stored_cursor == "" or (effective_api_key is None and stored_cursor and stored_cursor.startswith("Il")):
+        if stored_cursor == "" or (
+            effective_api_key is None and stored_cursor and stored_cursor.startswith("Il")
+        ):
             start_cursor = "*"
 
     pace = limiter

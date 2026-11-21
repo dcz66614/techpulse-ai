@@ -1,35 +1,38 @@
 """Regression tests for SRCfix (TechPulse-AI P0004).
 
 Covers:
-1. OpenAlex: 401 on later page / missing params (page 1 succeeds, page 2 401 ends pagination gracefully; api_key param handling).
+1. OpenAlex: 401 on later page / missing params (page 1 succeeds, page 2 401 ends
+   pagination gracefully; api_key param handling).
 2. Crossref: 406 request shape (Accept: application/json succeeds; legacy vnd header returns 406).
 3. arXiv: Atom XML false-positive captcha + transient 5xx retry with backoff and 3s minimum.
-4. Orchestrator: disable -> re-probe -> re-enable (transient/recovered re-enables; genuine block stays disabled).
-5. Soak cadence: wall-clock scheduling after simulated suspend (short sleep slices, instant resume, 1 cycle, no burst catch-up).
+4. Orchestrator: disable -> re-probe -> re-enable (transient/recovered re-enables; genuine
+   block stays disabled).
+5. Soak cadence: wall-clock scheduling after simulated suspend (short sleep slices, instant
+   resume, 1 cycle, no burst catch-up).
 """
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Any
 
 import httpx
 import pytest
 
 from techpulse.collectors.arxiv import collect_arxiv
-from techpulse.collectors.base import CursorStore, ManualClock, load_source_config, query_key
+from techpulse.collectors.base import CursorStore, ManualClock, query_key
 from techpulse.collectors.crossref import collect_crossref
 from techpulse.collectors.openalex import collect_openalex
-from techpulse.contracts import RawRecord, TaskStatus
+from techpulse.contracts import TaskStatus
 from techpulse.ops.soak import SoakRunner, make_stub_activities
 from techpulse.workflows.activities import ActivityContext, ActivityResult
 from techpulse.workflows.orchestrator import (
     LocalOrchestrator,
-    ManualClock as OrchestratorClock,
     pipeline_task_ids,
+)
+from techpulse.workflows.orchestrator import (
+    ManualClock as OrchestratorClock,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -252,7 +255,8 @@ def test_arxiv_atom_xml_abstract_mentioning_captcha_is_not_blocked() -> None:
 
     be classified as a captcha block.
     """
-    atom_feed = """<?xml version="1.0" encoding="utf-8"?>
+    atom_feed = (
+        """<?xml version="1.0" encoding="utf-8"?>
 <feed xmlns="http://www.w3.org/2005/Atom" xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/">
   <opensearch:totalResults>1</opensearch:totalResults>
   <opensearch:startIndex>0</opensearch:startIndex>
@@ -260,13 +264,15 @@ def test_arxiv_atom_xml_abstract_mentioning_captcha_is_not_blocked() -> None:
   <entry>
     <id>http://arxiv.org/abs/2601.12345v1</id>
     <title>Deep Learning Attacks on Modern Audio and Text CAPTCHA Schemes</title>
-    <summary>We present a robust deep learning framework to break audio reCAPTCHA and hCaptcha challenges with 99% accuracy.</summary>
+    <summary>We present a robust deep learning framework to break audio reCAPTCHA and """
+        """hCaptcha challenges with 99% accuracy.</summary>
     <published>2026-01-15T00:00:00Z</published>
     <updated>2026-01-15T00:00:00Z</updated>
     <author><name>Alice Researcher</name></author>
   </entry>
 </feed>
 """
+    )
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
@@ -478,6 +484,9 @@ class SuspendSimulatingClock:
         else:
             self.current_time += timedelta(seconds=seconds)
 
+    def advance(self, seconds: float) -> None:
+        self.current_time += timedelta(seconds=seconds)
+
 
 def test_wall_clock_scheduling_after_simulated_suspend() -> None:
     """Soak scheduling sleeps in short slices (<=30s). When host is suspended,
@@ -510,9 +519,9 @@ def test_wall_clock_scheduling_after_simulated_suspend() -> None:
         assert runner.clock.now() >= next_due
         assert gap >= 3.0 * 3600.0
 
-        # 3. Exactly 1 sleep slice was needed because the resume detected now >= next_due immediately
+        # 3. Exactly 1 sleep slice was needed because the resume detected now >= next_due
+        #    immediately
         assert len(sim_clock.sleep_slices) == 1
-
 
 
 # ---------------------------------------------------------------------------
@@ -603,7 +612,10 @@ def test_openalex_plan_upgrade_required_surfaced_explicitly() -> None:
     """A fake 401/429 "Plan upgrade required" body is surfaced with that message (not bare 401)."""
     error_body = {
         "error": "Plan upgrade required",
-        "message": 'The "from_updated_date:2026-11-01" filter is part of daily sync, which comes with the Member+ and Partner plans.',
+        "message": (
+            'The "from_updated_date:2026-11-01" filter is part of daily sync, '
+            "which comes with the Member+ and Partner plans."
+        ),
     }
 
     def handler_401(request: httpx.Request) -> httpx.Response:
@@ -656,6 +668,9 @@ class DivergentWallMonotonicClock:
     def sleep(self, seconds: float) -> None:
         self.sleep_calls.append(seconds)
         self.monotonic_s += seconds
+        self.wall_time += timedelta(seconds=seconds)
+
+    def advance(self, seconds: float) -> None:
         self.wall_time += timedelta(seconds=seconds)
 
     def jump_wall_clock(self, seconds: float) -> None:
@@ -752,6 +767,7 @@ def test_reproduce_and_verify_fixed_hourly_grid_cadence_after_gap_and_restart() 
         due4 = runner2.compute_next_due()
         assert due4 == t0 + timedelta(hours=8)  # 09:59 UTC
         assert (due4 - due3).total_seconds() == 3600.0
+
 
 # ---------------------------------------------------------------------------
 # 7. SRCfix3: Soak grid never reuses an executed slot

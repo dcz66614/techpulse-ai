@@ -7,12 +7,13 @@ Requests are at least three seconds apart.
 from __future__ import annotations
 
 import re
-import xml.etree.ElementTree as ElementTree
+import xml.etree.ElementTree as StdlibElementTree  # nosec B405  # type annotations only; parsing uses defusedxml
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
+from defusedxml import ElementTree
 
 from techpulse.collectors.base import (
     DEFAULT_TIMEOUT,
@@ -230,7 +231,7 @@ def parse_feed(
 
 
 def _entry_item(
-    entry: ElementTree.Element,
+    entry: StdlibElementTree.Element,
     *,
     collected_at: datetime,
     policy_snapshot_id: str,
@@ -301,7 +302,7 @@ def _with_window(search_query: str, window_start: datetime, window_end: datetime
     return f"{search_query} AND submittedDate:[{begin} TO {finish}]"
 
 
-def _categories(entry: ElementTree.Element) -> tuple[list[str], str]:
+def _categories(entry: StdlibElementTree.Element) -> tuple[list[str], str]:
     found: list[str] = []
     primary = ""
     primary_el = entry.find(f"{_ARXIV}primary_category")
@@ -316,7 +317,7 @@ def _categories(entry: ElementTree.Element) -> tuple[list[str], str]:
     return found, primary
 
 
-def _authors(entry: ElementTree.Element) -> list[str]:
+def _authors(entry: StdlibElementTree.Element) -> list[str]:
     found: list[str] = []
     for author in entry.findall(f"{_ATOM}author"):
         name = _text(author.find(f"{_ATOM}name"))
@@ -325,7 +326,7 @@ def _authors(entry: ElementTree.Element) -> list[str]:
     return found
 
 
-def _total_results(root: ElementTree.Element) -> int | None:
+def _total_results(root: StdlibElementTree.Element) -> int | None:
     raw = _text(root.find(f"{_OPENSEARCH}totalResults"))
     if not raw or not raw.isdigit():
         return None
@@ -341,7 +342,7 @@ def _optional_time(value: str) -> datetime | None:
         return None
 
 
-def _text(element: ElementTree.Element | None) -> str:
+def _text(element: StdlibElementTree.Element | None) -> str:
     if element is None or element.text is None:
         return ""
     return " ".join(element.text.split())

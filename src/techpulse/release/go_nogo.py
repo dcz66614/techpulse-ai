@@ -56,7 +56,7 @@ POLICY_VERSION = "policy-2026-10-27"
 class CheckStatus(StrEnum):
     """Evaluation status for an item."""
 
-    PASS = "PASS"
+    PASS = "PASS"  # nosec B105  # enum status constant, not a password
     FAIL = "FAIL"
     GATED = "GATED"
     NOT_MEASURED = "NOT_MEASURED"
@@ -497,7 +497,7 @@ def _measure_d20(root: Path, artifacts_dir: Path | None = None) -> tuple[float, 
                     comp = data.get("required_field_completeness")
                     if ext is not None and comp is not None:
                         return float(ext), float(comp)
-                except Exception:
+                except Exception:  # nosec B112  # best-effort metrics parse; skip bad artifact
                     continue
 
     # 2. Check fixture records
@@ -522,7 +522,7 @@ def _measure_d20(root: Path, artifacts_dir: Path | None = None) -> tuple[float, 
                     comp = clean_res.metrics.get("required_field_completeness")
                     if ext is not None and comp is not None:
                         return float(ext), float(comp)
-            except Exception:
+            except Exception:  # nosec B110  # best-effort optional metrics computation
                 pass
     return None
 
@@ -632,7 +632,7 @@ def _measure_q10(
                             num = checks.get("numeric_date_consistency", {}).get("value")
                             if cite is not None and url is not None and num is not None:
                                 return float(cite), float(url), float(num)
-                except Exception:
+                except Exception:  # nosec B112  # best-effort metrics parse; skip bad artifact
                     continue
 
     # 2. Check committed sample reports
@@ -651,7 +651,7 @@ def _measure_q10(
                         num = checks.get("numeric_date_consistency", {}).get("value")
                         if cite is not None and url is not None and num is not None:
                             return float(cite), float(url), float(num)
-        except Exception:
+        except Exception:  # nosec B110  # best-effort parse of optional sample report
             pass
 
     # 3. Check sample pipeline from evidence records fixture
@@ -693,7 +693,7 @@ def _measure_q10(
                 num = checks_obj.get("numeric_date_consistency", {}).get("value")
                 if cite is not None and url is not None and num is not None:
                     return float(cite), float(url), float(num)
-        except Exception:
+        except Exception:  # nosec B110  # best-effort optional QA verification parse
             pass
 
     return None
@@ -730,7 +730,7 @@ def _measure_e10(root: Path, artifacts_dir: Path | None = None) -> tuple[int, in
                             )
                             if max_fam > 0 and max_tier > 0:
                                 return max_fam, max_tier
-                except Exception:
+                except Exception:  # nosec B112  # best-effort metrics parse; skip bad artifact
                     continue
 
     records_fixture = root / "tests" / "fixtures" / "evidence" / "records.jsonl"
@@ -770,7 +770,7 @@ def _measure_e10(root: Path, artifacts_dir: Path | None = None) -> tuple[int, in
                 )
                 if max_fam > 0 and max_tier > 0:
                     return max_fam, max_tier
-        except Exception:
+        except Exception:  # nosec B110  # best-effort optional metrics computation
             pass
 
     return None
@@ -803,7 +803,7 @@ def _measure_security_violations(
                     failed = counts.get("cases_failed", 0)
                     if unauth is not None and leaks is not None:
                         return int(unauth), int(leaks), int(failed)
-                except Exception:
+                except Exception:  # nosec B112  # best-effort metrics parse; skip bad artifact
                     continue
 
     # 2. Check security report
@@ -820,7 +820,7 @@ def _measure_security_violations(
                 failed = metrics.get("cases_failed", 0)
                 if unauth is not None and leaks is not None:
                     return int(unauth), int(leaks), int(failed)
-        except Exception:
+        except Exception:  # nosec B110  # best-effort parse of optional security report
             pass
 
     # 3. Run suite against redteam cases if available
@@ -835,7 +835,7 @@ def _measure_security_violations(
                 rep.secrets_leaked,
                 rep.cases_failed,
             )
-        except Exception:
+        except Exception:  # nosec B110  # best-effort optional redteam suite run
             pass
 
     return None
@@ -853,7 +853,7 @@ def _measure_o30_spend(root: Path, artifacts_dir: Path | None = None) -> float |
                     spent = data.get("spent_usd")
                     if spent is not None:
                         return float(spent)
-                except Exception:
+                except Exception:  # nosec B112  # best-effort metrics parse; skip bad artifact
                     continue
 
     router_path = root / "config" / "model_router.yaml"
@@ -866,7 +866,7 @@ def _measure_o30_spend(root: Path, artifacts_dir: Path | None = None) -> float |
                 paid_count = sum(1 for m in models if isinstance(m, dict) and m.get("paid") is True)
                 if default_model == "local/template" and paid_count == 0:
                     return 0.0
-        except Exception:
+        except Exception:  # nosec B110  # best-effort optional config parse
             pass
 
     return None

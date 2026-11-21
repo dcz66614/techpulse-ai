@@ -486,7 +486,9 @@ def guarded_get(
                     f"retryable_error: http {fetched.status_code}",
                 )
             delay = parse_retry_after(fetched.headers)
-            backoff = delay if delay is not None else max(limiter.min_interval_seconds, 2.0 ** attempt)
+            backoff = (
+                delay if delay is not None else max(limiter.min_interval_seconds, 2.0**attempt)
+            )
             limiter.note_retry_after(backoff)
             attempt += 1
             continue
@@ -573,9 +575,14 @@ def collect_pages(
             try:
                 page = fetch_page(cursor)
             except CollectorFailure as exc:
-                if pages == 0 and cursor != initial_cursor and "api key required" in exc.message.lower():
+                if (
+                    pages == 0
+                    and cursor != initial_cursor
+                    and "api key required" in exc.message.lower()
+                ):
                     warnings.append(
-                        f"cursor paging requires API key, restarting from initial cursor: {exc.message}"
+                        "cursor paging requires API key, restarting from initial "
+                        f"cursor: {exc.message}"
                     )
                     cursor = initial_cursor
                     continue
